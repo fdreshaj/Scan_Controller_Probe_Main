@@ -4,19 +4,30 @@ from typing import Iterable
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton
-
+import tkinter as tk
+from tkinter import simpledialog
+from tkinter import filedialog as fd
 from gui.scanner_qt import ScannerQt
 from gui.ui_scanner import Ui_MainWindow
 from gui.qt_util import QPluginSetting
 from scanner import scanner
 from scanner.plugin_setting import PluginSetting
-from scanner.VNA_Plugin import VNAProbePlugin
+#from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.probe_controller import ProbePlugin
+from scanner.plugin_switcher import PluginSwitcher
+import pkgutil
+import importlib
+import scanner.Plugins as plugin_pkg
+from scanner.probe_controller import ProbeController
 
+
+for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
+    importlib.import_module(f"scanner.Plugins.{module_name}")
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
     ui: Ui_MainWindow
+    pluginChosen = False
 
     def __init__(self) -> None:
         super().__init__()
@@ -129,36 +140,42 @@ class MainWindow(QMainWindow):
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
     
-    ###### CONFIG + PLUGIN SWITCHING VIA GLOBAL FLAGS
+    
+
     def set_configuration_settings(self, controller, connected, connect_function, disconnect_function):
+
+       
+
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
-        globals.value_flag = controller.settings_pre_connect[0].value
+        #globals.value_flag = controller.settings_pre_connect[0].value
 
         if connected:
-            print(globals.value_flag)
-            if globals.value_flag == "VNA MS46524B":
+            #print debugging
+            if self.pluginChosen == False:
+                print(PluginSwitcher.plugin_name)
                 
+                print(PluginSwitcher.plugin_name)
+                
+                print(PluginSwitcher.plugin_name)
+                print(controller.settings_pre_connect[0].value)
+
+
                 for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
-                print(globals.value_flag)
-                print("This was the chosen plugin")
-                #globals.value_flag = "VNA MS46524B"    
-                connected = False
-                
-                # here i want to restart the process of configurations
-                                # grab its existing MotionController so you don’t lose your connection/state:
+            
                 old_motion = self.scanner.scanner.motion_controller
-
-                # re‐instantiate Scanner (this will re‐run __init__ and pick up globals.value_flag):
+                #newProbeInst = PluginSwitcher.plugin_name
+            
+                # re‐instantiate Scanner
                 from scanner.scanner import Scanner
                 self.scanner.scanner = Scanner(motion_controller=old_motion)
 
-                # now force the UI to re‐draw the probe‐config page:
                 self.configure_probe(True)
-            else:
-                print("Other TBD")
-                print(globals.value_flag)
+                connected = False
+                self.pluginChosen = True
+
+            elif self.pluginChosen == True:
                 for setting in controller.settings_pre_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
@@ -169,25 +186,27 @@ class MainWindow(QMainWindow):
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
                 plot_btn = QPushButton("Plot")
-                plot_btn.clicked.connect(controller.plot)   # bind to the instance
+                plot_btn.clicked.connect(controller.plot)   
+            
                 self.ui.config_layout.addRow(plot_btn)
         else:
-            for setting in controller.settings_pre_connect:
-                self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-            connect_button = QPushButton("Connect")
-            connect_button.clicked.connect(connect_function)
-            self.ui.config_layout.addRow(connect_button)
+                print(controller)
+                print(controller)
+                for setting in controller.settings_pre_connect:
+                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+                connect_button = QPushButton("Connect")
+                connect_button.clicked.connect(connect_function)
+                self.ui.config_layout.addRow(connect_button)
 
-            for setting in controller.settings_post_connect:
-                plug = QPluginSetting(setting)
-                plug.setDisabled(True)
-                self.ui.config_layout.addRow(setting.display_label, plug)
+                for setting in controller.settings_post_connect:
+                    plug = QPluginSetting(setting)
+                    plug.setDisabled(True)
+                    self.ui.config_layout.addRow(setting.display_label, plug)
 
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)
-    
 
 if __name__ == "__main__":
     app = QApplication([])

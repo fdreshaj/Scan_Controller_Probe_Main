@@ -3,45 +3,61 @@ from itertools import product
 import time
 
 from scanner.plugin_setting import PluginSetting
-
+import os 
+import sys 
+import importlib.util
 from scanner.motion_controller import MotionController
 from scanner.probe_controller import ProbeController
-
+import tkinter as tk
+from tkinter import simpledialog
+from tkinter import filedialog as fd
 from scanner.gcode_simulator import GcodeSimulator
 from scanner.probe_simulator import ProbeSimulator
-from scanner.VNA_Plugin import VNAProbePlugin
+#from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.plugin_switcher import PluginSwitcher
 import csv
 import globals
+import pkgutil
+import importlib
+import scanner.Plugins as plugin_pkg
+
+# for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
+#     importlib.import_module(f"scanner.Plugins.{module_name}")
 
 class Scanner():
     _motion_controller: MotionController
+
     _probe_controller: ProbeController
     
-    
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
+
+        if PluginSwitcher.plugin_name == "":
+            
+            self.plugin_Probe = PluginSwitcher()
+        else:
+           
+            plugin_module_name = f"scanner.Plugins.{PluginSwitcher.basename.replace('.py', '')}"
+            try:
+                plugin_module = importlib.import_module(plugin_module_name)
+                
+                plugin_class = getattr(plugin_module, PluginSwitcher.plugin_name)
+                
+                self.plugin_Probe = plugin_class()
+            except (ImportError, AttributeError) as e:
+                print(f"Error loading plugin {PluginSwitcher.plugin_name} from {plugin_module_name}: {e}")
+               
+                self.plugin_Probe = PluginSwitcher() 
+                
         if motion_controller is None:
             self._motion_controller = MotionController(GcodeSimulator())
         else:
             self._motion_controller = motion_controller
         
         if probe_controller is None:
-            if globals.value_flag == "initial":
-
-                self._probe_controller = ProbeController(PluginSwitcher())
-            elif globals.value_flag == "VNA MS46524B":
-                self._probe_controller = ProbeController(VNAProbePlugin())
-            elif globals.value_flag == "VNA 37397C":
-                pass #### Add the plugins by their global the value names here, don't forget to update the Plugin Switcher settings and Test Scanner GUI connection settings 
-                     #### set_configuration_settings is the relevant method in test scanner gui file 
-            elif globals.value_flag == "ETC ...":
-                pass
+            self._probe_controller = ProbeController(self.plugin_Probe)
         else:
-            if globals.value_flag == "initial":
+            self._probe_controller = ProbeController(self.plugin_Probe) 
 
-                self._probe_controller = ProbeController(PluginSwitcher())
-            elif globals.value_flag == "VNA MS46524B":
-                self._probe_controller = ProbeController(VNAProbePlugin())
 
     def run_scan(self) -> None:
         scan_xy = [(float(x) - 20, float(40 - y if x%20==10 else y) - 20) for x,y in product(range(0, 50, 10), repeat=2)]
@@ -95,8 +111,7 @@ class Scanner():
         return self._probe_controller
 
 
-
-
+    
 
 
 
