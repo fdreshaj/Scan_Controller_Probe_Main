@@ -56,7 +56,7 @@ class Scanner():
         if probe_controller is None:
             self._probe_controller = ProbeController(self.plugin_Probe)
         else:
-            self._probe_controller = ProbeController(self.plugin_Probe) 
+            self._probe_controller = probe_controller 
 
 
     def run_scan(self) -> None:
