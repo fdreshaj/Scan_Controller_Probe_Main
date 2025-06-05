@@ -55,9 +55,10 @@ class Scanner():
         
         if probe_controller is None:
             self._probe_controller = ProbeController(self.plugin_Probe)
+        elif probe_controller == "Back":
+            self._probe_controller = ProbeController(PluginSwitcher()) 
         else:
-            self._probe_controller = probe_controller 
-
+            self._probe_controller = ProbeController(self.plugin_Probe) 
 
     def run_scan(self) -> None:
         scan_xy = [(float(x) - 20, float(40 - y if x%20==10 else y) - 20) for x,y in product(range(0, 50, 10), repeat=2)]
@@ -101,7 +102,13 @@ class Scanner():
     def close(self) -> None:
         self._motion_controller.disconnect()
         self._probe_controller.disconnect()
-    
+
+
+    def close_Probe(self) -> None:
+        self._probe_controller.disconnect()
+
+    def close_Motion(self) -> None:
+        self._motion_controller.disconnect()
     @property
     def motion_controller(self) -> MotionController:
         return self._motion_controller

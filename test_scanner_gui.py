@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton
 import tkinter as tk
 from tkinter import simpledialog
 from tkinter import filedialog as fd
+from tkinter import messagebox
 from gui.scanner_qt import ScannerQt
 from gui.ui_scanner import Ui_MainWindow
 from gui.qt_util import QPluginSetting
@@ -140,16 +141,30 @@ class MainWindow(QMainWindow):
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
     
-    
+    def back_function(self):
 
+        response = messagebox.askyesno(
+            "Reset Instrument Connection",
+            "Are you sure you want to reset the instrument connection?"
+        )
+
+        if response:  
+            from scanner.scanner import Scanner
+            self.scanner.scanner = Scanner(probe_controller="Back")
+
+            self.configure_probe(True)
+            self.connected = False
+            self.pluginChosen = False
+        else: 
+            pass 
+
+        
     def set_configuration_settings(self, controller, connected, connect_function, disconnect_function):
-
-       
-
+        
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
         #globals.value_flag = controller.settings_pre_connect[0].value
-
+        
         if connected:
             #print debugging
             if self.pluginChosen == False:
@@ -174,6 +189,9 @@ class MainWindow(QMainWindow):
                 self.configure_probe(True)
                 connected = False
                 self.pluginChosen = True
+                back_btn = QPushButton("Back")
+                back_btn.clicked.connect(self.back_function)
+                self.ui.config_layout.addRow(back_btn)
 
             elif self.pluginChosen == True:
                 for setting in controller.settings_pre_connect:
@@ -185,10 +203,12 @@ class MainWindow(QMainWindow):
                 self.ui.config_layout.addRow(connect_button)
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-                plot_btn = QPushButton("Plot")
-                plot_btn.clicked.connect(controller.plot)   
-            
-                self.ui.config_layout.addRow(plot_btn)
+                # plot_btn = QPushButton("Plot")
+                # plot_btn.clicked.connect(controller.plot)   
+                # self.ui.config_layout.addRow(plot_btn)
+                back_btn = QPushButton("Back")
+                back_btn.clicked.connect(self.back_function)
+                self.ui.config_layout.addRow(back_btn)
         else:
                 print(controller)
                 print(controller)
@@ -197,11 +217,14 @@ class MainWindow(QMainWindow):
                 connect_button = QPushButton("Connect")
                 connect_button.clicked.connect(connect_function)
                 self.ui.config_layout.addRow(connect_button)
-
+                # back_btn = QPushButton("Back")
+                # back_btn.clicked.connect(self.back_function)
+                # self.ui.config_layout.addRow(back_btn)
                 for setting in controller.settings_post_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
+
 
 
     def closeEvent(self, event: QCloseEvent) -> None:
