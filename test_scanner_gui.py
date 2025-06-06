@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
     def disconnect_probe(self):
         self.scanner.scanner.probe_controller.disconnect()
         self.configure_probe(True)
+        self.connect = False
 
     @Slot(bool)
     def configure_pattern(self, was_selected: bool) -> None:

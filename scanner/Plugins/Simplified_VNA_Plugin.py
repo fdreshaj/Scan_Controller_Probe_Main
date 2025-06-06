@@ -3,9 +3,11 @@ from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, Pl
 from scanner.MS461xxVISA_Implementation import InstrumentConnection
 import pyvisa
 import tkinter as tk
-
-
-### This plugin is for the MS46524B 4 port VNA
+from tkinter import ttk
+#from tkinterPopUp import s_parameter_selection_VNA_n_channels
+import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
+### This plugin is for the MS46524B 4 port VNA, 
+#import VNA_List_Sparams
 
 class VNA_Plugin(ProbePlugin):
 
@@ -25,17 +27,18 @@ class VNA_Plugin(ProbePlugin):
             select_options=["Query", "Write"], restrict_selections=True
         )
 
-        self.s_param_interest = PluginSettingString(
-            "Choose desired S parameter", "S11",
-            select_options=["S11","S12","S13","S14","S21","S22","S23","S24","S31","S32","S33","S34","S41","S42","S43","S44"], restrict_selections=True
-        )
-
+        # self.s_param_interest = PluginSettingString(
+        #     "Choose desired S parameter", "S11",
+        #     select_options=["S11","S12","S13","S14","S21","S22","S23","S24","S31","S32","S33","S34","S41","S42","S43","S44"], restrict_selections=True
+        # )
 
         self.freq_start = PluginSettingFloat("Start Freq (Hz)", 1e9)
         
         self.freq_stop = PluginSettingFloat("Stop Freq (Hz)", 4e9)
 
         self.if_bandwidth = PluginSettingFloat("IF Bandwidth (Hz)", 10000)        
+
+        # self.num_sparam_int = PluginSettingInteger("Desired num of s-params", 1)
 
         # Add the Pre connect settings
 
@@ -51,8 +54,9 @@ class VNA_Plugin(ProbePlugin):
 
         self.add_setting_pre_connect(self.if_bandwidth)
 
-        self.add_setting_pre_connect(self.s_param_interest)
+        # self.add_setting_pre_connect(self.s_param_interest)
 
+        # self.add_setting_pre_connect(self.num_sparam_int)
 
     def connect(self):
         self.vna=InstrumentConnection(self.address.value, self.timeout.value).connect()
@@ -61,8 +65,6 @@ class VNA_Plugin(ProbePlugin):
 
         if self.freq_mode.value == "Query":
 
-            ##### Add a button update for the queried value and grey it out
-
             start_Frequency = self.vna.query(":SENS1:FREQ:STAR?")
             stop_Frequency = self.vna.query(":SENS1:FREQ:STOP?")
             intermediate_Frequency = self.vna.query(":SENS1:BAND?")
@@ -70,8 +72,15 @@ class VNA_Plugin(ProbePlugin):
             print(f"VNA start frequency is: {start_Frequency} Hz")
             print(f"VNA stop frequency is: {stop_Frequency} Hz")
             print(f"VNA IF bandwidth frequency is: {intermediate_Frequency} Hz")
+
+            # Update Queried values
             
+            PluginSettingFloat.set_value_from_string(self.freq_start, f"{start_Frequency}")
             
+            PluginSettingFloat.set_value_from_string(self.freq_stop, f"{stop_Frequency}")
+
+            PluginSettingFloat.set_value_from_string(self.if_bandwidth, f"{intermediate_Frequency}")
+
 
         elif self.freq_mode.value == "Write":
             
@@ -83,14 +92,70 @@ class VNA_Plugin(ProbePlugin):
             print("__Incorrect Input on frequency mode setting__")
 
 
-        # Set number of traces, default traces are 4, it is set to 1 for now
-        
-        self.vna.write(":CALC1:PAR:COUN 1")
+        # Set number of traces, num params -> num traces
 
-        # Set which S parameter you are interested in
-        self.vna.write(f"CALC1:PAR1:DEF {self.s_param_interest}")
+        #self.vna.write(":CALC1:PAR:COUN 1")
+
+        #number of s params will be a function of n^2
+        #input to the s_param_selection_VNA_n_channels is how many channels your vna has, i wrote it that way so that someone can use it for other VNA plugins aswell if they want to have a quick choosing system on tkinter
+
+        selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
+        print(selected_params)
+        self.vna.write(f":CALC1:PAR:COUN {len(selected_params)}")
+
+        for i in range(1,len(selected_params)+1):
+            self.vna.write(f"CALC1:PAR{i}:DEF {selected_params[i-1]}")
+            print(f"CALC1:PAR{i}:DEF {selected_params[i-1]}")
+            self.vna.write(f":CALC1:PAR{i}:FORM: REIM")
+            print(f":CALC1:PAR{i}:FORM: REIM")  
+
+        # Set what format you are interested in, check page 235 of programming manual for more info on what types are available if needed 
+        # Maybe add button for user selection ? 
+        # self.vna.write(":CALC1:PAR1:FORM: REIM")
+
+        # Set 501 points
+        self.vna.write(":SENS1:SWE:POIN 501")
         
-                
+        # Set instrument on Hold
+        self.vna.write(":SENS1:HOLD:FUNC HOLD")
+        
+        # Check if instrument is correctly connected 
+        opc_done = self.vna.query("*OPC?")
+
+        if not (opc_done == "1"):
+            print(f"Error, Opc returned unexpected value while waiting for a single sweep to finish (expected '1', received {opc_done}); ending code execution.")
+            self.vna.close()
+
+
+        print("Frequency list")
+        frequency_data_query = self.vna.query(":SENS1:FREQ:DATA?")
+        print(frequency_data_query)
+
+        # Reading S parameter data
+        # Important to note, if you want more than one s parameter data, you need to set traces to more than one and define them with their respective parameters
+        # for example: 3. Define 4 traces - S11, S21, S12 & S22
+        #             shockline_instrument.write(":CALC1:PAR:COUN 4") , defines the traces 
+        #             shockline_instrument.write(":CALC1:PAR1:DEF S11") , defines which param# corresponds to a specific s# param
+        #             shockline_instrument.write(":CALC1:PAR2:DEF S21")
+        #             shockline_instrument.write(":CALC1:PAR3:DEF S12")
+        #             shockline_instrument.write(":CALC1:PAR4:DEF S22")
+        #
+        
+        #2d array
+        s_param_interest_data_query=[]
+
+        for j in range(1,len(selected_params)+1):
+
+            query_list = self.vna.query(f":CALC1:PAR{j}:DATA:SDAT?")
+
+            s_param_interest_data_query.append(query_list)
+            
+            print(f"\n Printing {selected_params[j-1]} data")
+            print(s_param_interest_data_query[j-1])
+
+        
+
+
     def disconnect(self):
         if self.vna:
             self.vna.close()
@@ -120,41 +185,4 @@ class VNA_Plugin(ProbePlugin):
 
     def scan_read_measurement(self, scan_index, scan_location):
         pass
-
-# class self.vna:
-
-#     def __init__(self, resource_name, timeout):
-#         self.resource_name = resource_name
-#         self.timeout = timeout
-#         self.q_response = None
-#         self.shockline_visa = None
-#         self.rm = pyvisa.ResourceManager()
-#         self.connect()
-#         self.shockline_visa.timeout = timeout
-
-#     def connect(self):
-#         try:
-#             self.shockline_visa = self.rm.open_resource(self.resource_name)
-#         except Exception as e:
-#             print("Failed to initialize VISA connection, message error is :\n")
-#             print(e)
-
-#     def write(self, w_command):
-#         try:
-#             self.shockline_visa.write(w_command)
-#         except Exception as e:
-#             print(f'Failed to write command "{w_command}", message error is :\n')
-#             print(e)
-
-#     def query(self, q_command):
-#         self.q_response = self.shockline_visa.query(q_command)
-#         return self.q_response.rstrip()
-
-#     def close(self):
-#         try:
-#             self.shockline_visa.close()
-#             self.rm.close()
-#         except Exception as e:
-#             print("Failed to disconnect VISA connection, message error is :\n")
-#             print(e)
-
+        
