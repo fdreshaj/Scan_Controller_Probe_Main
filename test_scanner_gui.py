@@ -3,13 +3,13 @@ from typing import Iterable
 
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
 import tkinter as tk
 from tkinter import simpledialog
 from tkinter import filedialog as fd
 from tkinter import messagebox
 from gui.scanner_qt import ScannerQt
-from gui.ui_scanner import Ui_MainWindow
+from gui.ui_scanner_plotter_version import Ui_MainWindow
 from gui.qt_util import QPluginSetting
 from scanner import scanner
 from scanner.plugin_setting import PluginSetting
@@ -20,10 +20,18 @@ import pkgutil
 import importlib
 import scanner.Plugins as plugin_pkg
 from scanner.probe_controller import ProbeController
-
-
-for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
-    importlib.import_module(f"scanner.Plugins.{module_name}")
+# import matplotlib
+# matplotlib.use('QtAgg')
+# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+# from matplotlib.figure import Figure
+# from  gui.plotter import plotter_system
+import matplotlib
+matplotlib.use('QtAgg') # <--- Ensure this line is exactly 'QtAgg' and is at the top
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas # <--- CHANGE THIS LINE
+from matplotlib.figure import Figure
+from  gui.plotter import plotter_system
+# for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
+#     importlib.import_module(f"scanner.Plugins.{module_name}")
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
@@ -35,8 +43,9 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.scanner = ScannerQt()
-        
+        self.plotter = plotter_system()
         try:
+            self.setup_plotting_canvas()
             self.setup_connections()
             self.show()
         except:
@@ -141,7 +150,49 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
+
+    def plot_btn(self):
+        
+        self.plotter.plot_initial_data()
+        self.plot_settings()
+
+
+    def plot_settings(self):
+        
+        plot_style = QPushButton("Select Plot Style (Mag dB default)")
+        plot_style.clicked.connect(self.plot_style)
+        self.ui.plot_config_wid.addRow(plot_style)       
+        
+        sel_hide_channel = QPushButton("Select/Hide S-Parameters")
+        sel_hide_channel.clicked.connect(self.sel_hide_channel)
+        self.ui.plot_config_wid.addRow(sel_hide_channel)
+        
+        dsp_settings = QPushButton("DSP Settings")
+        dsp_settings.clicked.connect(self.dsp_settings)
+        self.ui.plot_config_wid.addRow(dsp_settings)      
+        
+        plot_plugins = QPushButton("Import Plot Plugins")
+        plot_plugins.clicked.connect(self.plot_plugins)
+        self.ui.plot_config_wid.addRow(plot_plugins)            
+
+    def plot_style(self):
+        pass
     
+    def sel_hide_channel(self):
+        pass
+    
+    
+    def dsp_settings(self):
+        pass
+    
+    def plot_plugins(self):
+        pass
+    
+    def save_btn(self):
+        self.plotter.save()
+        
+    
+
     def back_function(self):
 
         response = messagebox.askyesno(
@@ -204,12 +255,21 @@ class MainWindow(QMainWindow):
                 self.ui.config_layout.addRow(connect_button)
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-                # plot_btn = QPushButton("Plot")
-                # plot_btn.clicked.connect(controller.plot)   
-                # self.ui.config_layout.addRow(plot_btn)
+
+                self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
+                self.setup_plotting_canvas()
+                plot_btn = QPushButton("Plot")
+                plot_btn.clicked.connect(self.plot_btn)   
+                self.ui.config_layout.addRow(plot_btn)
+
+                save_btn = QPushButton("Save Data")
+                save_btn.clicked.connect(self.save_btn)   
+                self.ui.config_layout.addRow(save_btn)
+
                 back_btn = QPushButton("Back")
                 back_btn.clicked.connect(self.back_function)
                 self.ui.config_layout.addRow(back_btn)
+
         else:
                 print(controller)
                 print(controller)
@@ -227,7 +287,11 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(setting.display_label, plug)
 
 
-
+    def setup_plotting_canvas(self) -> None:
+        main_layout = self.ui.main_layout 
+        # Add the plotter_system widget to the main layout
+        main_layout.addWidget(self.plotter, 1, 5)
+        
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)

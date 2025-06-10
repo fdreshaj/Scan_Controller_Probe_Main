@@ -4,22 +4,27 @@ from scanner.MS461xxVISA_Implementation import InstrumentConnection
 import pyvisa
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 #from tkinterPopUp import s_parameter_selection_VNA_n_channels
 import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
+#from gui.plotter import plotter_system
+import re
 ### This plugin is for the MS46524B 4 port VNA, 
-#import VNA_List_Sparams
+
 
 class VNA_Plugin(ProbePlugin):
-
+    
 
     def __init__(self):
         super().__init__()
         self.vna = None
-
+        self.frequency_data_query = []
+        self.s_param_interest_data_query = []
         # Connection settings
         self.address = PluginSettingString("Resource Address", "TCPIP0::169.254.250.89::inst0::INSTR")
         self.timeout = PluginSettingInteger("Timeout (ms)", 20000)
 
+        #self.plotter = plotter_system()
         # Frequency settings
 
         self.freq_mode = PluginSettingString(
@@ -99,13 +104,13 @@ class VNA_Plugin(ProbePlugin):
         #number of s params will be a function of n^2
         #input to the s_param_selection_VNA_n_channels is how many channels your vna has, i wrote it that way so that someone can use it for other VNA plugins aswell if they want to have a quick choosing system on tkinter
 
-        selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
-        print(selected_params)
-        self.vna.write(f":CALC1:PAR:COUN {len(selected_params)}")
+        self.selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
+        print(self.selected_params)
+        self.vna.write(f":CALC1:PAR:COUN {len(self.selected_params)}")
 
-        for i in range(1,len(selected_params)+1):
-            self.vna.write(f"CALC1:PAR{i}:DEF {selected_params[i-1]}")
-            print(f"CALC1:PAR{i}:DEF {selected_params[i-1]}")
+        for i in range(1,len(self.selected_params)+1):
+            self.vna.write(f"CALC1:PAR{i}:DEF {self.selected_params[i-1]}")
+            print(f"CALC1:PAR{i}:DEF {self.selected_params[i-1]}")
             self.vna.write(f":CALC1:PAR{i}:FORM: REIM")
             print(f":CALC1:PAR{i}:FORM: REIM")  
 
@@ -128,8 +133,8 @@ class VNA_Plugin(ProbePlugin):
 
 
         print("Frequency list")
-        frequency_data_query = self.vna.query(":SENS1:FREQ:DATA?")
-        print(frequency_data_query)
+        self.frequency_data_query = self.vna.query(":SENS1:FREQ:DATA?")
+        print(self.frequency_data_query)
 
         # Reading S parameter data
         # Important to note, if you want more than one s parameter data, you need to set traces to more than one and define them with their respective parameters
@@ -142,35 +147,52 @@ class VNA_Plugin(ProbePlugin):
         #
         
         #2d array
-        s_param_interest_data_query=[]
+        self.s_param_interest_data_query=[]
 
-        for j in range(1,len(selected_params)+1):
+        for j in range(1,len(self.selected_params)+1):
 
             query_list = self.vna.query(f":CALC1:PAR{j}:DATA:SDAT?")
 
-            s_param_interest_data_query.append(query_list)
+            self.s_param_interest_data_query.append(query_list)
             
-            print(f"\n Printing {selected_params[j-1]} data")
-            print(s_param_interest_data_query[j-1])
+            print(f"\n Printing s param data query \n {self.selected_params[j-1]} ")
+            print(self.s_param_interest_data_query[j-1])
 
         
-
+        # scan_end = messagebox.askyesno(
+        #     "Scan Complete",
+        #     "Do you want to save the data"
+        # )
+        # if scan_end == True:  
+        #     self.plotter.save
+        # else: 
+        #     pass 
 
     def disconnect(self):
         if self.vna:
             self.vna.close()
 
     def get_xaxis_coords(self):
-        pass 
+        # 1) ask for the ASCII frequency list (block format)
+        raw = self.vna.query(":SENS1:FREQ:DATA?")
+        #raw = self.frequency_data_query
+        # 2) strip SCPI “#<n><len>” prefix if present
+        if raw.startswith("#"):
+            hdr_digits = int(raw[1])           # e.g. '9'
+            raw = raw[2 + hdr_digits:]         # skip "#", the '9', plus 9 header chars
+
+        # 3) split on whitespace or commas, convert to float
+        parts = re.split(r"[,\s]+", raw.strip())
+        return tuple(map(float, parts))
 
     def get_xaxis_units(self):
-        pass
+        return "Hz"
 
     def get_yaxis_units(self):
         pass
 
     def get_channel_names(self):
-        pass
+        return self.selected_params 
 
     def scan_begin(self):
         self.vna.write(":TRIG:SING")
@@ -183,6 +205,17 @@ class VNA_Plugin(ProbePlugin):
     def scan_end(self):
         pass
 
-    def scan_read_measurement(self, scan_index, scan_location):
-        pass
-        
+    def _strip_block(self, raw):
+        if raw.startswith("#"):
+            n = int(raw[1]); raw = raw[2+n:]
+        return re.split(r"[,\s]+", raw.strip())
+
+    def scan_read_measurement(self, scan_index=None, scan_location=None):
+        results = {}
+        for idx, name in enumerate(self.get_channel_names(), start=1):
+            raw = self.vna.query(f":CALC1:PAR{idx}:DATA:SDAT?")
+            tokens = self._strip_block(raw)
+            vals = list(map(float, tokens))
+            results[name] = [complex(vals[i], vals[i+1])
+                            for i in range(0, len(vals), 2)]
+        return results
