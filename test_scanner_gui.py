@@ -20,6 +20,8 @@ import pkgutil
 import importlib
 import scanner.Plugins as plugin_pkg
 from scanner.probe_controller import ProbeController
+import gui.select_plot_style as select_plot_style
+import gui.select_plot_hide as select_plot_hide
 # import matplotlib
 # matplotlib.use('QtAgg')
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -37,13 +39,14 @@ class MainWindow(QMainWindow):
     scanner: ScannerQt
     ui: Ui_MainWindow
     pluginChosen = False
-
+   
     def __init__(self) -> None:
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.scanner = ScannerQt()
         self.plotter = plotter_system()
+        
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -152,15 +155,23 @@ class MainWindow(QMainWindow):
                 self.ui.config_layout.removeRow(i)
 
     def plot_btn(self):
-        
-        self.plotter.plot_initial_data()
+        for i in reversed(range(self.ui.plot_config_wid.rowCount())):
+            self.ui.plot_config_wid.removeRow(i)
+            
+        self.freqs, self.s_param_names,self.all_s_params_data = self.plotter._get_and_process_data("Log Mag")
+        self.plot_style = "Log Mag"
+        self.processed_data = self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
         self.plot_settings()
 
 
     def plot_settings(self):
         
+        display_Pop_up = QPushButton("Display Pop Up")
+        display_Pop_up.clicked.connect(self.display_Pop_up)
+        self.ui.plot_config_wid.addRow(display_Pop_up)  
+        
         plot_style = QPushButton("Select Plot Style (Mag dB default)")
-        plot_style.clicked.connect(self.plot_style)
+        plot_style.clicked.connect(self.plot_style_btn)
         self.ui.plot_config_wid.addRow(plot_style)       
         
         sel_hide_channel = QPushButton("Select/Hide S-Parameters")
@@ -173,17 +184,29 @@ class MainWindow(QMainWindow):
         
         plot_plugins = QPushButton("Import Plot Plugins")
         plot_plugins.clicked.connect(self.plot_plugins)
-        self.ui.plot_config_wid.addRow(plot_plugins)            
-
-    def plot_style(self):
-        pass
+        self.ui.plot_config_wid.addRow(plot_plugins)  
+        
+        
+        
+                  
+    def display_Pop_up(self):
+    
+        self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
+        
+        
+    def plot_style_btn(self):
+        #Pop up Tkinter asking what style of plot you want
+        self.plot_style = select_plot_style.select_plot_style()
+        self.processed_data=self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
     
     def sel_hide_channel(self):
-        pass
-    
+        
+        selected_hidden = select_plot_hide.select_plot_hide(4)
+        self.plotter.set_trace_visibility(selected_hidden)
     
     def dsp_settings(self):
-        pass
+        self.invfft = self.plotter.invFFT_plot(self.s_param_names,self.processed_data,)
+        #self.fft = self.plotter.FFT_plot(self.s_param_names,self.invfft) 
     
     def plot_plugins(self):
         pass
