@@ -80,22 +80,22 @@ class Scanner():
         sdata = self._probe_controller.scan_read_measurement(len(scan_xy), (x, y))
         self._probe_controller.scan_end()
         freqs = self._probe_controller.get_xaxis_coords() 
-        with open("vna_sparams.csv", "w", newline="") as csvfile:
-            writer = csv.writer(csvfile)
-            # header: Freq, then for each channel Real,Imag
-            header = ["Frequency(Hz)"]
-            for name in sdata:
-                header += [f"{name}_Re", f"{name}_Im"]
-            writer.writerow(header)
+        # with open("vna_sparams.csv", "w", newline="") as csvfile:
+        #     writer = csv.writer(csvfile)
+        #     # header: Freq, then for each channel Real,Imag
+        #     header = ["Frequency(Hz)"]
+        #     for name in sdata:
+        #         header += [f"{name}_Re", f"{name}_Im"]
+        #     writer.writerow(header)
 
-            # assume all channels have same length as freqs
-            N = len(freqs)
-            for i in range(N):
-                row = [freqs[i]]
-                for pts in sdata.values():
-                    c = pts[i]
-                    row += [c.real, c.imag]
-                writer.writerow(row)
+        #     # assume all channels have same length as freqs
+        #     N = len(freqs)
+        #     for i in range(N):
+        #         row = [freqs[i]]
+        #         for pts in sdata.values():
+        #             c = pts[i]
+        #             row += [c.real, c.imag]
+        #         writer.writerow(row)
 
         print(f"Total time elapsed: {time.time() - start} seconds.")
 
