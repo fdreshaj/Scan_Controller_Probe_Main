@@ -38,15 +38,19 @@ from  gui.plotter import plotter_system
 class MainWindow(QMainWindow):
     scanner: ScannerQt
     ui: Ui_MainWindow
-    pluginChosen = False
-   
+    pluginChosen_probe = False
+    
+    pluginChosen_motion = False
+    
+    
+    
     def __init__(self) -> None:
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.scanner = ScannerQt()
         self.plotter = plotter_system()
-        
+        self.back_btn_check = False
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -84,7 +88,7 @@ class MainWindow(QMainWindow):
 
         self.display_timer = QTimer()
         self.display_timer.setInterval(1000 // 60)
-        self.display_timer.timeout.connect(self.scanner.update_motion)
+       # self.display_timer.timeout.connect(self.scanner.update_motion) TODO:
         self.display_timer.start()
     
     @Slot(bool)
@@ -99,13 +103,15 @@ class MainWindow(QMainWindow):
         
     @Slot(bool)
     def configure_motion(self, was_selected: bool) -> None:
+        
         if was_selected:
             controller = self.scanner.scanner.motion_controller
-            self.set_configuration_settings(controller._driver, controller.is_connected(), self.connect_motion, self.disconnect_motion)
+            self.set_configuration_settings_motion(controller._driver, controller.is_connected(), self.connect_motion, self.disconnect_motion)
+            self.back_btn_check == False
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-                
+            self.back_btn_check == False
     @Slot()
     def connect_motion(self):
         self.scanner.scanner.motion_controller.connect()
@@ -120,10 +126,16 @@ class MainWindow(QMainWindow):
     def configure_probe(self, was_selected: bool) -> None:
         if was_selected:
             controller = self.scanner.scanner.probe_controller
-            self.set_configuration_settings(controller._probe, controller.is_connected(), self.connect_probe, self.disconnect_probe)
+            self.set_configuration_settings_probe(controller._probe, controller.is_connected(), self.connect_probe, self.disconnect_probe)
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
+
+
+        self.back_btn_check = False
+        # back_btn = QPushButton("Back")
+        # back_btn.clicked.connect(self.back_function)
+        # self.ui.config_layout.addRow(back_btn)    
             
     @Slot()
     def connect_probe(self):
@@ -229,12 +241,12 @@ class MainWindow(QMainWindow):
 
             self.configure_probe(True)
             self.connected = False
-            self.pluginChosen = False
+            self.pluginChosen_probe = False
         else: 
             pass 
 
-        
-    def set_configuration_settings(self, controller, connected, connect_function, disconnect_function):
+        #TODO: New function for probe vs motion controller
+    def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
@@ -242,7 +254,7 @@ class MainWindow(QMainWindow):
         
         if connected:
             #print debugging
-            if self.pluginChosen == False:
+            if self.pluginChosen_motion == False:
                 print(PluginSwitcher.plugin_name)
                 
                 print(PluginSwitcher.plugin_name)
@@ -259,16 +271,95 @@ class MainWindow(QMainWindow):
             
                 # re‐instantiate Scanner
                 from scanner.scanner import Scanner
+                self.scanner.scanner = Scanner(probe_controller=old_motion)
+
+                self.configure_motion(True)
+                connected = False
+                self.pluginChosen_motion = True
+                # back_btn = QPushButton("Back")
+                # back_btn.clicked.connect(self.back_function)
+                # self.ui.config_layout.addRow(back_btn)
+
+            elif self.pluginChosen_motion == True:
+                for setting in controller.settings_pre_connect:
+                    plug = QPluginSetting(setting)
+                    plug.setDisabled(True)
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                connect_button = QPushButton("Disconnect")
+                connect_button.clicked.connect(disconnect_function)
+                self.ui.config_layout.addRow(connect_button)
+                for setting in controller.settings_post_connect:
+                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+
+                # self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
+                # self.setup_plotting_canvas()
+                # plot_btn = QPushButton("Plot")
+                # plot_btn.clicked.connect(self.plot_btn)   
+                # self.ui.config_layout.addRow(plot_btn)
+
+                # save_btn = QPushButton("Save Data")
+                # save_btn.clicked.connect(self.save_btn)   
+                # self.ui.config_layout.addRow(save_btn)
+
+                # back_btn = QPushButton("Back")
+                # back_btn.clicked.connect(self.back_function)
+                # self.ui.config_layout.addRow(back_btn)
+
+        else:
+                print(controller)
+                print(controller)
+                for setting in controller.settings_pre_connect:
+                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+                connect_button = QPushButton("Connect")
+                connect_button.clicked.connect(connect_function)
+                self.ui.config_layout.addRow(connect_button)
+                # back_btn = QPushButton("Back")
+                # back_btn.clicked.connect(self.back_function)
+                # self.ui.config_layout.addRow(back_btn)
+                for setting in controller.settings_post_connect:
+                    plug = QPluginSetting(setting)
+                    plug.setDisabled(True)
+                    self.ui.config_layout.addRow(setting.display_label, plug)    
+        
+    def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
+        
+        for i in reversed(range(self.ui.config_layout.rowCount())):
+            self.ui.config_layout.removeRow(i)
+        
+    
+        if connected:
+            #print debugging
+            if self.pluginChosen_probe == False:
+                print(PluginSwitcher.plugin_name)
+                
+                print(PluginSwitcher.plugin_name)
+                
+                print(PluginSwitcher.plugin_name)
+                print(controller.settings_pre_connect[0].value)
+
+
+                for i in reversed(range(self.ui.config_layout.rowCount())):
+                    self.ui.config_layout.removeRow(i)
+                    
+                #self.back_btn_check = False
+                old_motion = self.scanner.scanner.motion_controller
+                #newProbeInst = PluginSwitcher.plugin_name
+            
+                # re‐instantiate Scanner
+                from scanner.scanner import Scanner
                 self.scanner.scanner = Scanner(motion_controller=old_motion)
 
                 self.configure_probe(True)
                 connected = False
-                self.pluginChosen = True
-                back_btn = QPushButton("Back")
-                back_btn.clicked.connect(self.back_function)
-                self.ui.config_layout.addRow(back_btn)
+                self.pluginChosen_probe = True
+                
+                # if self.back_btn_check == False:
+                #     self.back_btn_check = True
+                #     back_btn = QPushButton("Back")
+                #     back_btn.clicked.connect(self.back_function)
+                #     self.ui.config_layout.addRow(back_btn)
 
-            elif self.pluginChosen == True:
+            elif self.pluginChosen_probe == True:
                 for setting in controller.settings_pre_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
@@ -289,9 +380,11 @@ class MainWindow(QMainWindow):
                 save_btn.clicked.connect(self.save_btn)   
                 self.ui.config_layout.addRow(save_btn)
 
-                back_btn = QPushButton("Back")
-                back_btn.clicked.connect(self.back_function)
-                self.ui.config_layout.addRow(back_btn)
+                if self.back_btn_check == False:
+                    self.back_btn_check = True
+                    back_btn = QPushButton("Back")
+                    back_btn.clicked.connect(self.back_function)
+                    self.ui.config_layout.addRow(back_btn)
 
         else:
                 print(controller)
@@ -301,15 +394,18 @@ class MainWindow(QMainWindow):
                 connect_button = QPushButton("Connect")
                 connect_button.clicked.connect(connect_function)
                 self.ui.config_layout.addRow(connect_button)
-                # back_btn = QPushButton("Back")
-                # back_btn.clicked.connect(self.back_function)
-                # self.ui.config_layout.addRow(back_btn)
+                
+               
                 for setting in controller.settings_post_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
 
-
+                if self.back_btn_check == False:
+                    self.back_btn_check = True
+                    back_btn = QPushButton("Back")
+                    back_btn.clicked.connect(self.back_function)
+                    self.ui.config_layout.addRow(back_btn)
     def setup_plotting_canvas(self) -> None:
         main_layout = self.ui.main_layout 
         # Add the plotter_system widget to the main layout

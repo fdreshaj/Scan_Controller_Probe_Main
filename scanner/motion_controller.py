@@ -83,7 +83,7 @@ class MotionController:
         self._driver.connect()
         self._is_driver_connected = True
         self._axis_labels = self._driver.get_axis_display_names()
-        self._target_positions = list(self._driver.get_current_positions())
+        #self._target_positions = list(self._driver.get_current_positions())
         self._endstop_minimums = self._driver.get_endstop_minimums()
         self._endstop_maximums = self._driver.get_endstop_maximums()
     

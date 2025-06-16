@@ -26,13 +26,13 @@ class ScannerQt(QObject):
         print("!!!!!!!!!!!!!!!!!!!!!! Closing Qt Scanner Object !!!!!!!!!!!!!!!!!!!!!!")
         self.scanner.close()
 
-    @Slot()
-    def update_motion(self) -> None:
-        if self.scanner.motion_controller.is_connected():
-            self.is_moving.emit(self.scanner.motion_controller.is_moving())
-            positions = self.scanner.motion_controller.get_current_positions()
-            for pos,signal in zip(positions, (self.current_position_x, self.current_position_y, self.current_position_z)):
-                signal.emit(pos)
+    @Slot() #TODO:
+    # def update_motion(self) -> None:
+    #     if self.scanner.motion_controller.is_connected():
+    #         self.is_moving.emit(self.scanner.motion_controller.is_moving())
+    #         positions = self.scanner.motion_controller.get_current_positions()
+    #         for pos,signal in zip(positions, (self.current_position_x, self.current_position_y, self.current_position_z)):
+    #             signal.emit(pos)
 
     
     @Slot(float)

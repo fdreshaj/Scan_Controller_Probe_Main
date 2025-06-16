@@ -13,13 +13,20 @@ from tkinter import simpledialog
 from tkinter import filedialog as fd
 from scanner.gcode_simulator import GcodeSimulator
 from scanner.probe_simulator import ProbeSimulator
+from scanner.Plugins.motion_controller_plugin import motion_controller_plugin
 #from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.plugin_switcher import PluginSwitcher
-import csv
-import globals
-import pkgutil
 import importlib
 import scanner.Plugins as plugin_pkg
+
+#optimization TODO: 
+import threading
+import multiprocessing
+
+
+
+
+
 
 # for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
 #     importlib.import_module(f"scanner.Plugins.{module_name}")
@@ -49,7 +56,7 @@ class Scanner():
                 self.plugin_Probe = PluginSwitcher() 
                 
         if motion_controller is None:
-            self._motion_controller = MotionController(GcodeSimulator())
+            self._motion_controller = MotionController(motion_controller_plugin())
         else:
             self._motion_controller = motion_controller
         
@@ -69,6 +76,7 @@ class Scanner():
             if i == 0:
                 self._probe_controller.scan_begin()
             else:
+                # Add thread here TODO:
                 self._probe_controller.scan_read_measurement(i - 1, (x, y))
 
             while self._motion_controller.is_moving():
@@ -77,26 +85,9 @@ class Scanner():
             self._probe_controller.scan_trigger_and_wait(i, (x, y))
         
         self._motion_controller.move_absolute({0:0, 1:0})
-        sdata = self._probe_controller.scan_read_measurement(len(scan_xy), (x, y))
+        self._probe_controller.scan_read_measurement(len(scan_xy), (x, y))
         self._probe_controller.scan_end()
-        freqs = self._probe_controller.get_xaxis_coords() 
-        # with open("vna_sparams.csv", "w", newline="") as csvfile:
-        #     writer = csv.writer(csvfile)
-        #     # header: Freq, then for each channel Real,Imag
-        #     header = ["Frequency(Hz)"]
-        #     for name in sdata:
-        #         header += [f"{name}_Re", f"{name}_Im"]
-        #     writer.writerow(header)
-
-        #     # assume all channels have same length as freqs
-        #     N = len(freqs)
-        #     for i in range(N):
-        #         row = [freqs[i]]
-        #         for pts in sdata.values():
-        #             c = pts[i]
-        #             row += [c.real, c.imag]
-        #         writer.writerow(row)
-
+        
         print(f"Total time elapsed: {time.time() - start} seconds.")
 
     def close(self) -> None:
