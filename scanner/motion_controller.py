@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Sequence
 
 from scanner.plugin_setting import PluginSetting
-
+import time
 
 class MotionControllerPlugin(ABC):
     settings_pre_connect: list[PluginSetting]
@@ -84,8 +84,13 @@ class MotionController:
         self._is_driver_connected = True
         self._axis_labels = self._driver.get_axis_display_names()
         #self._target_positions = list(self._driver.get_current_positions())
+        
         self._endstop_minimums = self._driver.get_endstop_minimums()
         self._endstop_maximums = self._driver.get_endstop_maximums()
+        #time.sleep(2)
+        #self._endstop_maximums = self._driver.home()
+        self._driver.set_velocity()
+        
     
     def is_connected(self) -> bool:
         return self._is_driver_connected
@@ -122,18 +127,24 @@ class MotionController:
         self.must_be_connected()
         self._driver.set_acceleration(axis_accels)
 
+
+    #TODO:
     def move_absolute(self, axis_positions: dict[int, float]) -> None:
         self.must_be_connected()
-        for ind in axis_positions:
-            if axis_positions[ind] > self._endstop_maximums[ind]:
-                axis_positions[ind] = self._endstop_maximums[ind]
-            if axis_positions[ind] < self._endstop_minimums[ind]:
-                axis_positions[ind] = self._endstop_minimums[ind]
+        # for ind in axis_positions:
+        #     if axis_positions[ind] > self._endstop_maximums[ind]:
+        #         axis_positions[ind] = self._endstop_maximums[ind]
+        #     if axis_positions[ind] < self._endstop_minimums[ind]:
+        #         axis_positions[ind] = self._endstop_minimums[ind]
         ret_positions = self._driver.move_absolute(axis_positions)
+        print(f"Ret positions {axis_positions}")
         if ret_positions is None:
             ret_positions = axis_positions
         for ind,val in axis_positions.items():
-            self._target_positions[ind] = val
+            #self._target_positions[ind] = val 
+            #TODO:
+        
+            pass
         
 
     def move_relative(self, axis_offsets: dict[int, float]) -> None:

@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
         else: 
             pass 
 
-        #TODO: New function for probe vs motion controller
+    
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
         for i in reversed(range(self.ui.config_layout.rowCount())):
