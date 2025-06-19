@@ -90,6 +90,7 @@ class MotionController:
         #time.sleep(2)
         #self._endstop_maximums = self._driver.home()
         self._driver.set_velocity()
+        self._driver.set_acceleration()
         
     
     def is_connected(self) -> bool:
@@ -131,6 +132,9 @@ class MotionController:
     #TODO:
     def move_absolute(self, axis_positions: dict[int, float]) -> None:
         self.must_be_connected()
+        
+
+        
         # for ind in axis_positions:
         #     if axis_positions[ind] > self._endstop_maximums[ind]:
         #         axis_positions[ind] = self._endstop_maximums[ind]

@@ -97,19 +97,56 @@ class motion_controller_plugin(MotionControllerPlugin):
             timeout=1 # Read timeout in seconds
         )
        
-       
-        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x41, 0x00, 0x0A])) # -20 Y axis
+    
+        # need to config 
+        # # ConfigureInsn: X CONFIGURE 5.0 AMPS, IDLE AT 50% AFTER 10.0 SECONDS
+        # configure_insn = ConfigureInsn(line=0, axis=1, i=1.5, p=15, s=1.5)
+        # print(f"ConfigureInsn (X CONFIGURE 5.0 AMPS, IDLE AT 50% AFTER 10.0 SECONDS): {configure_insn.get_binary():#010x}")
+        amp_val = PluginSettingFloat.get_value_as_string(self.amps)
+        amp_float = float(amp_val)
+        idle_percent = PluginSettingFloat.get_value_as_string(self.idle_Percent)
+        idle_p_int = int(idle_percent)
+        idle_time = PluginSettingFloat.get_value_as_string(self.idle_timeout)
+        idle_t_float = float(idle_time)
+        
+        config_insn_x = geckoInstructions.ConfigureInsn(line=0,axis=0,i=amp_float,p=idle_p_int,s=idle_t_float)
+        
+        config_insn_y = geckoInstructions.ConfigureInsn(line=0,axis=1,i=amp_float,p=idle_p_int,s=idle_t_float)
+        
+        binary_x = config_insn_x.get_binary()
+        binary_y = config_insn_y.get_binary()
+        print(f"Binary Command for X (raw int): {binary_x} ({binary_x:#010x})")
+        print(f"Binary Command for Y (raw int): {binary_y} ({binary_y:#010x})")
+        # Extract individual bytes (most significant byte first for typical serial comms)
+        # Assuming 32-bit unsigned integer, sent as 4 bytes: MSB to LSB
+        high_first_pair_x = (binary_x >> 24) & 0xFF
+        high_last_pair_x = (binary_x >> 16) & 0xFF
+        low_first_pair_x = (binary_x >> 8) & 0xFF
+        low_last_pair_x = binary_x & 0xFF
+        
+        high_first_pair_y = (binary_y >> 24) & 0xFF
+        high_last_pair_y = (binary_y >> 16) & 0xFF
+        low_first_pair_y = (binary_y >> 8) & 0xFF
+        low_last_pair_y = binary_y & 0xFF
         
         
-        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x01, 0x00, 0x0A])) #-20 x
-        
-        
-        #self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x01, 0x00, 0x0A])) # +20 x
-        
-        
-        #self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x41, 0x00, 0x0A])) # +20Y
-        
+        print(f"\nExtracted Bytes for X:")
+        print(f"  MSB: {high_first_pair_x:#04x}")
+        print(f"  Next: {high_last_pair_x:#04x}")
+        print(f"  Next: {low_first_pair_x:#04x}")
+        print(f"  LSB: {low_last_pair_x:#04x}")
 
+        print(f"\nExtracted Bytes for Y:")
+        print(f"  MSB: {high_first_pair_y:#04x}")
+        print(f"  Next: {high_last_pair_y:#04x}")
+        print(f"  Next: {low_first_pair_y:#04x}")
+        print(f"  LSB: {low_last_pair_y:#04x}")
+
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
+        
+        
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
+        
         
     def disconnect(self):
         pass
@@ -122,11 +159,18 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def set_velocity(self, velocities=None):
         
+            
+        
+        vel=float(PluginSettingInteger.get_value_as_string(self.travel_velocity))
+        pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
+        micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
+        
+        vel_final = pos_mult*micro_mult*0.261*vel
       
+        print(f"Final Velocity value: {vel_final}") 
         
-        vel=PluginSettingInteger.get_value_as_string(self.travel_velocity)
-        vel_int=int(vel)
-        
+        vel_int=int(vel_final)
+        print(f"vel int val: \n{vel_int} \n")
         
         velocity_command_x = geckoInstructions.VelocityInsn(line=0, axis=0, n=vel_int)
         
@@ -166,25 +210,77 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
+        time.sleep(0.1)
+        self.get_current_positions()
+        time.sleep(0.1)
+    def set_acceleration(self, accels=None):
         
-    
-    def set_acceleration(self, accels):
+        # first_pair,last_pair,axis_name,isnegative = self.low_word_generator({0:self.acceleration})
+        # print(f"{first_pair,last_pair,axis_name,isnegative}")
+        # last_pair_int = int(last_pair, 16)
+        # first_pair_int = int(first_pair, 16)
+        # #x axis
+        # self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x0C, last_pair_int, first_pair_int]))
         
-        first_pair,last_pair,axis_name,isnegative = self.low_word_generator({0:self.acceleration})
-        print(f"{first_pair,last_pair,axis_name,isnegative}")
-        last_pair_int = int(last_pair, 16)
-        first_pair_int = int(first_pair, 16)
-        #x axis
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x0C, last_pair_int, first_pair_int]))
+        # #y axis 
+        # self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x4C, last_pair_int, first_pair_int]))
         
-        #y axis 
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x4C, last_pair_int, first_pair_int]))
+        acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
+        micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
+        
+        acc_final = pos_mult*micro_mult*0.261*acc*(1/1000)
+        
+        print(f"Final acceleration value: {acc_final}")
+        
+        acc_int=int(acc_final)
+        
+        
+        acc_command_x = geckoInstructions.AccelerationInsn(line=0, axis=0, n=acc_int)
+        
+        acc_command_y = geckoInstructions.AccelerationInsn(line=0, axis=1, n=acc_int)
+        print(f"\n--- Setting Acceleration ---")
+        print(f"Travel Velocity (self.acceleration): {acc_int}")
+        binary_x = acc_command_x.get_binary()
+        binary_y = acc_command_y.get_binary()
+        print(f"Binary Command for X (raw int): {binary_x} ({binary_x:#010x})")
+        print(f"Binary Command for Y (raw int): {binary_y} ({binary_y:#010x})")
+        # Extract individual bytes (most significant byte first for typical serial comms)
+        # Assuming 32-bit unsigned integer, sent as 4 bytes: MSB to LSB
+        high_first_pair_x = (binary_x >> 24) & 0xFF
+        high_last_pair_x = (binary_x >> 16) & 0xFF
+        low_first_pair_x = (binary_x >> 8) & 0xFF
+        low_last_pair_x = binary_x & 0xFF
+        
+        high_first_pair_y = (binary_y >> 24) & 0xFF
+        high_last_pair_y = (binary_y >> 16) & 0xFF
+        low_first_pair_y = (binary_y >> 8) & 0xFF
+        low_last_pair_y = binary_y & 0xFF
+        
+        
+        print(f"\nExtracted Bytes for X:")
+        print(f"  MSB: {high_first_pair_x:#04x}")
+        print(f"  Next: {high_last_pair_x:#04x}")
+        print(f"  Next: {low_first_pair_x:#04x}")
+        print(f"  LSB: {low_last_pair_x:#04x}")
+
+        print(f"\nExtracted Bytes for Y:")
+        print(f"  MSB: {high_first_pair_y:#04x}")
+        print(f"  Next: {high_last_pair_y:#04x}")
+        print(f"  Next: {low_first_pair_y:#04x}")
+        print(f"  LSB: {low_last_pair_y:#04x}")
+
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
+        
+        
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
         
     
     def move_relative(self, move_dist):
         pass  
     
     def move_absolute(self, move_pos):
+        
         first_pair,last_pair,axis_name,isnegative = self.low_word_generator(move_pos)
         
         print(f"{first_pair,last_pair,axis_name,isnegative}")
@@ -201,11 +297,11 @@ class motion_controller_plugin(MotionControllerPlugin):
                 self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x41, last_pair_int, first_pair_int]))
             else:
                 self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x41, last_pair_int, first_pair_int]))
-                
+        
     def home(self, axes=None):
         #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x07, 0x05, 0x00]))
         
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00]))
+        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00]))
         
         
         #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x42, 0x00, 0x00]))
@@ -214,11 +310,18 @@ class motion_controller_plugin(MotionControllerPlugin):
         #     self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x42, 0x00, 0x00]))
         # elif axes == 'x':
         #      self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x02, 0x00, 0x00]))
-        
+        pass
         
     def get_current_positions(self):
-        pass
-    
+        # currently using for velocity/accel testing
+        
+        query_short_command = bytes([0x08, 0x00])
+        
+        self.serial_port.write(query_short_command)
+        
+        response = self.serial_port.read(50)
+        print(f"Response: \n \n {response} \n \n")
+        
     def is_moving(self):
         pass
     
@@ -230,63 +333,63 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
     
     
-    # def low_word_generator(self, input_dict):
+    def low_word_generator(self, input_dict):
         
-    #     is_negative = False
-    #     axis_name = ""
-    #     raw_value = None
+        is_negative = False
+        axis_name = ""
+        raw_value = None
 
-    #     if not isinstance(input_dict, dict) or not input_dict:
-    #         print("Error: Input must be a non-empty dictionary.")
-    #         return None, None, None, None
+        if not isinstance(input_dict, dict) or not input_dict:
+            print("Error: Input must be a non-empty dictionary.")
+            return None, None, None, None
 
-    #     # Extract the key-value pair and determine axis_name
-    #     for key, val in input_dict.items():
-    #         raw_value = val
-    #         if key == 0:
-    #             axis_name = "x"
-    #         elif key == 1:
-    #             axis_name = "y"
-    #         else:
-    #             print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y'.")
-    #             axis_name = "unknown_axis"
-    #         break # Process only the first item
+        # Extract the key-value pair and determine axis_name
+        for key, val in input_dict.items():
+            raw_value = val
+            if key == 0:
+                axis_name = "x"
+            elif key == 1:
+                axis_name = "y"
+            else:
+                print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y'.")
+                axis_name = "unknown_axis"
+            break # Process only the first item
 
-    #     # Convert to positive if negative, and set the is_negative flag
-    #     if raw_value is not None and raw_value < 0:
-    #         is_negative = True
-    #         raw_value = abs(raw_value)
+        # Convert to positive if negative, and set the is_negative flag
+        if raw_value is not None and raw_value < 0:
+            is_negative = True
+            raw_value = abs(raw_value)
 
-    #     try:
-    #         # Attempt to convert the raw value to an integer.
-    #         # Floats will be truncated (e.g., 10.5 becomes 10).
-    #         value = int(raw_value)
-    #     except (ValueError, TypeError):
-    #         print(f"Error: Could not convert '{raw_value}' to an integer. Please provide a numeric value.")
-    #         return None, None, axis_name, is_negative
+        try:
+            # Attempt to convert the raw value to an integer.
+            # Floats will be truncated (e.g., 10.5 becomes 10).
+            value = int(raw_value)
+        except (ValueError, TypeError):
+            print(f"Error: Could not convert '{raw_value}' to an integer. Please provide a numeric value.")
+            return None, None, axis_name, is_negative
 
-    #     # Max 255 value due to highest 8-bit representation (after integer conversion)
-    #     if not (0 <= value <= 255):
-    #         print(f"Error: Extracted value ({value}) must be between 0 and 255 after conversion to integer.")
-    #         return None, None, axis_name, is_negative
+        # Max 255 value due to highest 8-bit representation (after integer conversion)
+        if not (0 <= value <= 255):
+            print(f"Error: Extracted value ({value}) must be between 0 and 255 after conversion to integer.")
+            return None, None, axis_name, is_negative
 
-    #     # Convert value to 8-bit binary, padded to 8 digits (as per your original code)
-    #     binary_8_bit = bin(value)[2:].zfill(8)
+        # Convert value to 8-bit binary, padded to 8 digits (as per your original code)
+        binary_8_bit = bin(value)[2:].zfill(8)
 
-    #     # Append 8 zeroes on the right to the 8-bit value (as per your original code)
-    #     binary_16_bit = binary_8_bit + '00000000'
+        # Append 8 zeroes on the right to the 8-bit value (as per your original code)
+        binary_16_bit = binary_8_bit + '00000000'
 
-    #     # Translate the full binary value into hexadecimal
-    #     hex_value = hex(int(binary_16_bit, 2))[2:]
+        # Translate the full binary value into hexadecimal
+        hex_value = hex(int(binary_16_bit, 2))[2:]
 
-    #     # Append zeroes to hex if not 4 digits
-    #     hex_4_digits = hex_value.zfill(4)
+        # Append zeroes to hex if not 4 digits
+        hex_4_digits = hex_value.zfill(4)
 
-    #     # Split the hex into first and last pair
-    #     first_pair = hex_4_digits[:2]
-    #     last_pair = hex_4_digits[2:]
+        # Split the hex into first and last pair
+        first_pair = hex_4_digits[:2]
+        last_pair = hex_4_digits[2:]
 
-    #     return first_pair, last_pair, axis_name, is_negative
+        return first_pair, last_pair, axis_name, is_negative
     
 
 
