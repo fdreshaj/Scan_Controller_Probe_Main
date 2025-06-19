@@ -97,11 +97,6 @@ class motion_controller_plugin(MotionControllerPlugin):
             timeout=1 # Read timeout in seconds
         )
        
-    
-        # need to config 
-        # # ConfigureInsn: X CONFIGURE 5.0 AMPS, IDLE AT 50% AFTER 10.0 SECONDS
-        # configure_insn = ConfigureInsn(line=0, axis=1, i=1.5, p=15, s=1.5)
-        # print(f"ConfigureInsn (X CONFIGURE 5.0 AMPS, IDLE AT 50% AFTER 10.0 SECONDS): {configure_insn.get_binary():#010x}")
         amp_val = PluginSettingFloat.get_value_as_string(self.amps)
         amp_float = float(amp_val)
         idle_percent = PluginSettingFloat.get_value_as_string(self.idle_Percent)
@@ -270,16 +265,17 @@ class motion_controller_plugin(MotionControllerPlugin):
         print(f"  Next: {low_first_pair_y:#04x}")
         print(f"  LSB: {low_last_pair_y:#04x}")
 
-        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
+        self.serial_port.write(bytes([0x04, 0x00, high_first_pair_x, high_last_pair_x, low_first_pair_x, low_last_pair_x]))
         
         
-        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
+        self.serial_port.write(bytes([0x04, 0x00, high_first_pair_y, high_last_pair_y, low_first_pair_y, low_last_pair_y]))
         
     
     def move_relative(self, move_dist):
         pass  
     
     def move_absolute(self, move_pos):
+        
         
         first_pair,last_pair,axis_name,isnegative = self.low_word_generator(move_pos)
         
@@ -289,14 +285,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         if axis_name == "x":
             if isnegative == False: 
-                self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x01, last_pair_int, first_pair_int]))
+                self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x01, first_pair_int, last_pair_int]))
             else:
-                self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x01, last_pair_int, first_pair_int]))
+                self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x01, first_pair_int, last_pair_int]))
         if axis_name == "y":
             if isnegative == False: 
-                self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x41, last_pair_int, first_pair_int]))
+                self.serial_port.write(bytes([0x04, 0x00, 0x80, 0x41, first_pair_int, last_pair_int]))
             else:
-                self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x41, last_pair_int, first_pair_int]))
+                self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x41, first_pair_int, last_pair_int]))
         
     def home(self, axes=None):
         #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x07, 0x05, 0x00]))
@@ -332,8 +328,8 @@ class motion_controller_plugin(MotionControllerPlugin):
     def get_endstop_maximums(self):
         pass
     
-    
     def low_word_generator(self, input_dict):
+        
         
         is_negative = False
         axis_name = ""
@@ -369,9 +365,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             return None, None, axis_name, is_negative
 
         # Max 255 value due to highest 8-bit representation (after integer conversion)
-        if not (0 <= value <= 255):
-            print(f"Error: Extracted value ({value}) must be between 0 and 255 after conversion to integer.")
-            return None, None, axis_name, is_negative
+       
 
         # Convert value to 8-bit binary, padded to 8 digits (as per your original code)
         binary_8_bit = bin(value)[2:].zfill(8)
