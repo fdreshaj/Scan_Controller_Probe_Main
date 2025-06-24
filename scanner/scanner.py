@@ -16,6 +16,7 @@ from scanner.probe_simulator import ProbeSimulator
 from scanner.Plugins.motion_controller_plugin import motion_controller_plugin
 #from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.plugin_switcher import PluginSwitcher
+from scanner.plugin_switcher_motion import PluginSwitcherMotion
 import importlib
 import scanner.Plugins as plugin_pkg
 
@@ -41,31 +42,81 @@ class Scanner():
         if PluginSwitcher.plugin_name == "":
             
             self.plugin_Probe = PluginSwitcher()
+            
         else:
            
             plugin_module_name = f"scanner.Plugins.{PluginSwitcher.basename.replace('.py', '')}"
+            
             try:
                 plugin_module = importlib.import_module(plugin_module_name)
                 
                 plugin_class = getattr(plugin_module, PluginSwitcher.plugin_name)
                 
                 self.plugin_Probe = plugin_class()
+                
+                
+    
+                
             except (ImportError, AttributeError) as e:
                 print(f"Error loading plugin {PluginSwitcher.plugin_name} from {plugin_module_name}: {e}")
                
-                self.plugin_Probe = PluginSwitcher() 
+                self.plugin_Probe = PluginSwitcher()
                 
-        if motion_controller is None:
-            self._motion_controller = MotionController(motion_controller_plugin())
-        else:
-            self._motion_controller = motion_controller
-        
+                
         if probe_controller is None:
             self._probe_controller = ProbeController(self.plugin_Probe)
         elif probe_controller == "Back":
             self._probe_controller = ProbeController(PluginSwitcher()) 
         else:
-            self._probe_controller = ProbeController(self.plugin_Probe) 
+            self._probe_controller = ProbeController(self.plugin_Probe)    
+            
+            
+            
+                 
+                
+        if PluginSwitcherMotion.plugin_name == "":
+            
+            
+            self.plugin_Motion = PluginSwitcherMotion()
+        else:
+           
+            
+            motion_module_name = f"scanner.Plugins.{PluginSwitcherMotion.basename.replace('.py', '')}"
+            try:
+                
+                
+                motion_module = importlib.import_module(motion_module_name)
+                
+                motion_class = getattr(motion_module, PluginSwitcherMotion.plugin_name)
+                
+                self.plugin_Motion = motion_class()
+                
+            except (ImportError, AttributeError) as e:
+        
+                self.plugin_Motion = PluginSwitcherMotion()        
+                
+        if motion_controller is None:
+            self._motion_controller = MotionController(self.plugin_Motion)
+        elif motion_controller== "Back":
+            self._motion_controller = MotionController(PluginSwitcherMotion())
+        else:
+            self._motion_controller = MotionController(self.plugin_Motion)
+            
+            
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
     def run_scan(self) -> None:
         scan_xy = [(float(x) - 20, float(40 - y if x%20==10 else y) - 20) for x,y in product(range(0, 50, 10), repeat=2)]

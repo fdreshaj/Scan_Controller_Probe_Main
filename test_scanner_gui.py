@@ -251,7 +251,14 @@ class MainWindow(QMainWindow):
         else: 
             pass 
 
-    
+
+
+    # TODO:
+    def back_function_motion(self):
+
+        pass
+        
+        
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
         for i in reversed(range(self.ui.config_layout.rowCount())):
@@ -272,12 +279,12 @@ class MainWindow(QMainWindow):
                 for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
             
-                old_motion = self.scanner.scanner.motion_controller
+                old_probe = self.scanner.scanner.probe_controller
                 #newProbeInst = PluginSwitcher.plugin_name
             
                 # re‐instantiate Scanner
                 from scanner.scanner import Scanner
-                self.scanner.scanner = Scanner(probe_controller=old_motion)
+                self.scanner.scanner = Scanner(probe_controller=old_probe)
 
                 self.configure_motion(True)
                 connected = False
