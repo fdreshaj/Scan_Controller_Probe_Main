@@ -16,6 +16,7 @@ from scanner.plugin_setting import PluginSetting
 #from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.probe_controller import ProbePlugin
 from scanner.plugin_switcher import PluginSwitcher
+from scanner.plugin_switcher_motion import PluginSwitcherMotion
 import pkgutil
 import importlib
 import scanner.Plugins as plugin_pkg
@@ -113,11 +114,11 @@ class MainWindow(QMainWindow):
         if was_selected:
             controller = self.scanner.scanner.motion_controller
             self.set_configuration_settings_motion(controller._driver, controller.is_connected(), self.connect_motion, self.disconnect_motion)
-            self.back_btn_check == False
+            
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-            self.back_btn_check == False
+            
     @Slot()
     def connect_motion(self):
         self.scanner.scanner.motion_controller.connect()
@@ -246,7 +247,7 @@ class MainWindow(QMainWindow):
             self.scanner.scanner = Scanner(probe_controller="Back")
 
             self.configure_probe(True)
-            self.connected = False
+            #self.connected = False
             self.pluginChosen_probe = False
         else: 
             pass 
@@ -268,11 +269,11 @@ class MainWindow(QMainWindow):
         if connected:
             #print debugging
             if self.pluginChosen_motion == False:
-                print(PluginSwitcher.plugin_name)
+                print(PluginSwitcherMotion.plugin_name)
                 
-                print(PluginSwitcher.plugin_name)
+                print(PluginSwitcherMotion.plugin_name)
                 
-                print(PluginSwitcher.plugin_name)
+                print(PluginSwitcherMotion.plugin_name)
                 print(controller.settings_pre_connect[0].value)
 
 
@@ -298,9 +299,9 @@ class MainWindow(QMainWindow):
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                connect_button = QPushButton("Disconnect")
-                connect_button.clicked.connect(disconnect_function)
-                self.ui.config_layout.addRow(connect_button)
+                disconnect_button = QPushButton("Disconnect")
+                disconnect_button.clicked.connect(disconnect_function)
+                self.ui.config_layout.addRow(disconnect_button)
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
@@ -372,9 +373,9 @@ class MainWindow(QMainWindow):
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                connect_button = QPushButton("Disconnect")
-                connect_button.clicked.connect(disconnect_function)
-                self.ui.config_layout.addRow(connect_button)
+                disconnect_button = QPushButton("Disconnect")
+                disconnect_button.clicked.connect(disconnect_function)
+                self.ui.config_layout.addRow(disconnect_button)
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
