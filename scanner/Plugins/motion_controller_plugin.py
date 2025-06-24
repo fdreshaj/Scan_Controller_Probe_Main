@@ -160,14 +160,15 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def set_velocity(self, velocities=None):
         
-            
-        
+       
         vel=float(PluginSettingInteger.get_value_as_string(self.travel_velocity))
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
         vel_final = pos_mult*micro_mult*0.261*vel
-      
+        
+        #vel_final = 100
+        
         print(f"Final Velocity value: {vel_final}") 
         
         vel_int=int(vel_final)
@@ -184,6 +185,20 @@ class motion_controller_plugin(MotionControllerPlugin):
         print(f"Binary Command for Y (raw int): {binary_y} ({binary_y:#010x})")
         # Extract individual bytes (most significant byte first for typical serial comms)
         # Assuming 32-bit unsigned integer, sent as 4 bytes: MSB to LSB
+        byte_list_x = [
+            (binary_x >> 24) & 0xFF,  # MSB
+            (binary_x >> 16) & 0xFF,
+            (binary_x >> 8) & 0xFF,
+            binary_x & 0xFF           # LSB
+        ]
+        
+        byte_list_y = [
+            (binary_y >> 24) & 0xFF,  # MSB
+            (binary_y >> 16) & 0xFF,
+            (binary_y >> 8) & 0xFF,
+            binary_y & 0xFF           # LSB
+        ]
+        
         high_first_pair_x = (binary_x >> 24) & 0xFF
         high_last_pair_x = (binary_x >> 16) & 0xFF
         low_first_pair_x = (binary_x >> 8) & 0xFF
@@ -207,13 +222,35 @@ class motion_controller_plugin(MotionControllerPlugin):
         print(f"  Next: {low_first_pair_y:#04x}")
         print(f"  LSB: {low_last_pair_y:#04x}")
 
+        
+        
+        
+        
         self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
         
         
+        
         self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
-        time.sleep(0.1)
-        self.get_current_positions()
-        time.sleep(0.1)
+        # self.serial_port.write(bytes([
+        #                             0x04, 0x00,
+        #                             high_first_pair_x, high_last_pair_x,
+        #                             low_first_pair_x, low_last_pair_x
+        #                         ]))
+
+        # self.serial_port.write(bytes([
+        #                             0x04, 0x00,
+        #                             high_first_pair_y, high_last_pair_y,
+        #                             low_first_pair_y, low_last_pair_y
+        #                         ]))
+        
+        print(f"\n high {hex(high_last_pair_x),hex(high_first_pair_x)} lo {hex(low_last_pair_x),hex(low_first_pair_x)} \n")
+        print(f"\n high {hex(high_last_pair_y),hex(high_first_pair_y)} lo {hex(low_last_pair_y),hex(low_first_pair_y)} \n")
+        
+        # self.serial_port.write(bytes([0x04,0x00]+ byte_list_x))
+        # self.serial_port.write(bytes([0x04,0x00]+ byte_list_y))
+        
+        
+       
         
     def set_acceleration(self, accels=None):
         
@@ -242,7 +279,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         acc_command_y = geckoInstructions.AccelerationInsn(line=0, axis=1, n=acc_int)
         print(f"\n--- Setting Acceleration ---")
-        print(f"Travel Velocity (self.acceleration): {acc_int}")
+        print(f"Acceleration (self.acceleration): {acc_int}")
         binary_x = acc_command_x.get_binary()
         binary_y = acc_command_y.get_binary()
         print(f"Binary Command for X (raw int): {binary_x} ({binary_x:#010x})")
@@ -282,6 +319,10 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass  
     
     def move_absolute(self, move_pos):
+        acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
+        micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
+        
         is_negative = 0
         axis_name = ""
         raw_value = 0
@@ -313,7 +354,9 @@ class motion_controller_plugin(MotionControllerPlugin):
             is_negative = 1
             raw_value = int(abs(raw_value))
         
-
+        self.get_current_positions()
+        
+        raw_value = int(raw_value*pos_mult*micro_mult)
         
         motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_value,chain=False)
         binary_x = motion_insn.get_binary()
@@ -379,16 +422,33 @@ class motion_controller_plugin(MotionControllerPlugin):
     def get_current_positions(self):
         # currently using for velocity/accel testing
 
+        
         query_long_command = bytes([0x08, 0x00])
         
         self.serial_port.write(query_long_command)
         
-        response = self.serial_port.read(50)
-        print(f"Response: \n \n {response} \n \n")
+        response = self.serial_port.read(22)
+        print(f"Response: \n \n { response } \n \n")
+        
+        self.tokens = list(response)
+        print(self.tokens)
+        
+        print(f"Position {self.tokens[8],self.tokens[9],self.tokens[10]}")
+        
+        
+        
         
     def is_moving(self):
-        pass
-    
+       
+        if self.tokens[3] == 224:
+            
+            self.moving = False
+            
+        else:
+            
+            self.moving = True
+            
+         
     def get_endstop_minimums(self):
         pass
 

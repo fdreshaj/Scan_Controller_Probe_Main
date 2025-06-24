@@ -35,6 +35,12 @@ from  gui.plotter import plotter_system
 # for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
 #     importlib.import_module(f"scanner.Plugins.{module_name}")
 
+########      FIX NOTES 
+# Noticed in testing that position multiplier might need to be lowered a small amount it was overshooting a bit 
+# Velocity on Query Long
+#
+######## 
+
 class MainWindow(QMainWindow):
     scanner: ScannerQt
     ui: Ui_MainWindow
@@ -353,12 +359,7 @@ class MainWindow(QMainWindow):
                 connected = False
                 self.pluginChosen_probe = True
                 
-                # if self.back_btn_check == False:
-                #     self.back_btn_check = True
-                #     back_btn = QPushButton("Back")
-                #     back_btn.clicked.connect(self.back_function)
-                #     self.ui.config_layout.addRow(back_btn)
-
+        
             elif self.pluginChosen_probe == True:
                 for setting in controller.settings_pre_connect:
                     plug = QPluginSetting(setting)
