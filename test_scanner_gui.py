@@ -182,7 +182,10 @@ class MainWindow(QMainWindow):
         self.processed_data = self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
         self.plot_settings()
 
-
+    def scan_testing(self):
+        test_scan = QPushButton("Test Scan")
+        test_scan.clicked.connect(self.test_scan_bt)
+        self.ui.config_layout.addRow(test_scan)
     def plot_settings(self):
         
         display_Pop_up = QPushButton("Display Pop Up")
@@ -207,7 +210,9 @@ class MainWindow(QMainWindow):
         
         
         
-                  
+    def test_scan_bt(self):
+        self.scanner.scanner.run_scan()
+        
     def display_Pop_up(self):
     
         self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
@@ -305,6 +310,7 @@ class MainWindow(QMainWindow):
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
+                self.scan_testing()
                 # self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
                 # self.setup_plotting_canvas()
                 # plot_btn = QPushButton("Plot")

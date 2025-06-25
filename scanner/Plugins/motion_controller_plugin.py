@@ -319,7 +319,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass  
     
     def move_absolute(self, move_pos):
-        acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+       
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
@@ -438,16 +438,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         
+        
     def is_moving(self):
+      pass
        
-        if self.tokens[3] == 224:
+        
             
-            self.moving = False
-            
-        else:
-            
-            self.moving = True
-            
+
+    
          
     def get_endstop_minimums(self):
         pass

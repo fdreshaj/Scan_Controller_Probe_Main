@@ -19,10 +19,11 @@ from scanner.plugin_switcher import PluginSwitcher
 from scanner.plugin_switcher_motion import PluginSwitcherMotion
 import importlib
 import scanner.Plugins as plugin_pkg
-
+import numpy as np
 #optimization TODO: 
 import threading
 import multiprocessing
+import time
 
 
 
@@ -104,42 +105,61 @@ class Scanner():
             
             
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
 
     def run_scan(self) -> None:
-        scan_xy = [(float(x) - 20, float(40 - y if x%20==10 else y) - 20) for x,y in product(range(0, 50, 10), repeat=2)]
-
-        start = time.time()
-        for (i, (x, y)) in enumerate(scan_xy):
-            self._motion_controller.move_absolute({0:x, 1:y})
-            if i == 0:
-                self._probe_controller.scan_begin()
-            else:
-                # Add thread here TODO:
-                self._probe_controller.scan_read_measurement(i - 1, (x, y))
-
-            while self._motion_controller.is_moving():
-                time.sleep(0.001)
-
-            self._probe_controller.scan_trigger_and_wait(i, (x, y))
+        print("\n scan begin \n")
         
-        self._motion_controller.move_absolute({0:0, 1:0})
-        self._probe_controller.scan_read_measurement(len(scan_xy), (x, y))
-        self._probe_controller.scan_end()
+        scan_pat = "raster"
+        cols = 14
+        rows = 14
+        #quarter wavelength step size ex.21 GHz
+        step_size = 14.27
+        # Create matrix with alternating column signs
+        matrix = np.array([[step_size * (-1)**j for j in range(cols)] for _ in range(rows)])
+        print(f"\n {matrix} \n")
+        for col in range(cols):
+            for row in range(rows):
+                print(f"\n {matrix[row, col]} \n")
+                self._motion_controller.move_absolute({1: matrix[row, col]})
+                time.sleep(1)# Y axis
+            self._motion_controller.move_absolute({0: step_size})
+            time.sleep(1)
+            
+        # mat = [20,20,20]
+        # for i in range (0,len(mat)):
+        #     self._motion_controller.move_absolute({1: mat[i]})
+        #     time.sleep(1)
+                
+        # print("\n scan begin \n")
+        # scan_xy = [(float(x) - 20, float(40 - y if x%20==10 else y) - 20) for x,y in product(range(0, 50, 10), repeat=2)]
+
+        # start = time.time()
+        # for (i, (x, y)) in enumerate(scan_xy):
+        #     self._motion_controller.move_absolute({0:x, 1:y})
+        #     if i == 0:
+        #         #self._probe_controller.scan_begin()
+        #         pass
+        #     else:
+        #         # Add thread here TODO:
+        #         #self._probe_controller.scan_read_measurement(i - 1, (x, y))
+        #         pass
+
+        #     # while self._motion_controller.is_moving():
+        #     #     time.sleep(0.001) # TODO:
+
+        #     #self._probe_controller.scan_trigger_and_wait(i, (x, y))
         
-        print(f"Total time elapsed: {time.time() - start} seconds.")
+        # self._motion_controller.move_absolute({0:0, 1:0})
+        # #self._probe_controller.scan_read_measurement(len(scan_xy), (x, y))
+        # #self._probe_controller.scan_end()
+        
+        # print(f"Total time elapsed: {time.time() - start} seconds.")
+        
+        
+        
+        
+        
+        
 
     def close(self) -> None:
         self._motion_controller.disconnect()
