@@ -12,6 +12,8 @@ def create_pattern_matrix(n):
             row2.extend(range(n, -1, -1))   
     return np.array([row1, row2])
 
+
+
 def rotate_points(matrix, theta_rad):
     
     R = np.array([
@@ -46,33 +48,18 @@ def save_matrix_to_csv(matrix, filename='matrix_output.csv'):
         for row in matrix:
             writer.writerow(row)
 
-#step and len are in mm, step size should be quarter wavelength
-step_size = 3.725
-
-length = 60
-
-n = int(length/step_size)
-
-theta = np.deg2rad(-90)
-# Also dont forget to multiply the final matrix by the step size to scale
-
-mat = create_pattern_matrix(n)
-
-rot_mat = rotate_points(mat,theta)
-
-shear_mat = apply_shear(mat,0,1)
-
-save_matrix_to_csv(rot_mat)
-
-composite = apply_shear(rot_mat,1,0)
-mat = step_size*mat
-
-plt.figure(figsize=(10, 10))
-#plt.plot(mat[0], mat[1], 'o-', markersize=8)
-plt.plot(mat[0], mat[1], 'o-', markersize=8)
-plt.title(f'2D Pattern Plot for n={n}')
-plt.xlabel('Row 1 (X-axis)')
-plt.ylabel('Row 2 (Y-axis)')
-plt.grid(True)
-plt.axis('equal')
-plt.show()
+def plot(mat,n):
+    plt.figure(figsize=(10, 10))
+    #plt.plot(mat[0], mat[1], 'o-', markersize=8)
+    plt.plot(mat[0], mat[1], 'o-', markersize=8)
+    plt.title(f'2D Pattern Plot for n={n}')
+    plt.xlabel('Row 1 (X-axis)')
+    plt.ylabel('Row 2 (Y-axis)')
+    plt.grid(True)
+    plt.axis('equal')
+    plt.show()
+# n=10
+# matrix = create_pattern_matrix(n)
+# matrix = rotate_points(matrix,np.deg2rad(45))
+# matrix = apply_shear(matrix,0,1)
+# plot(matrix,n)

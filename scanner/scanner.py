@@ -24,6 +24,7 @@ import numpy as np
 import threading
 import multiprocessing
 import time
+import raster_pattern_generator
 
 
 
@@ -107,23 +108,61 @@ class Scanner():
         
 
     def run_scan(self) -> None:
-        print("\n scan begin \n")
         
-        scan_pat = "raster"
-        cols = 14
-        rows = 14
-        #quarter wavelength step size ex.21 GHz
-        step_size = 14.27
-        # Create matrix with alternating column signs
-        matrix = np.array([[step_size * (-1)**j for j in range(cols)] for _ in range(rows)])
-        print(f"\n {matrix} \n")
-        for col in range(cols):
-            for row in range(rows):
-                print(f"\n {matrix[row, col]} \n")
-                self._motion_controller.move_absolute({1: matrix[row, col]})
-                time.sleep(1)# Y axis
-            self._motion_controller.move_absolute({0: step_size})
-            time.sleep(1)
+        step_size = 3.725
+        negative_step_size = -3.725
+        
+        length = 600
+
+        n = int(length/step_size)
+        negative_thresh = -0.01
+        positive_thresh = 0.01
+        
+        matrix = raster_pattern_generator.create_pattern_matrix(n)
+        matrix = raster_pattern_generator.rotate_points(matrix,np.deg2rad(45))
+        #raster_pattern_generator.plot(matrix,n)
+        
+        for i in range (0,len(matrix[0])):
+            if i == 0:
+                print("First scan in place, no movement")
+                
+            elif i==n:
+                print("First Col done")
+            else:
+                difference = matrix[:,i] - matrix[:,i-1]
+                #TODO: Optimizations possible
+                if difference[0] > positive_thresh:
+                    #x axis
+                    self._motion_controller.move_absolute({0:step_size})
+                    time.sleep(1)
+                elif difference[0] < negative_thresh:
+                    self._motion_controller.move_absolute({0:negative_step_size})
+                    time.sleep(1)
+                if difference[1] > positive_thresh:
+                    #y axis
+                    self._motion_controller.move_absolute({1:step_size})
+                    time.sleep(1)
+                elif difference[1] < negative_thresh:
+                    self._motion_controller.move_absolute({1:negative_step_size})
+                    time.sleep(1)
+        
+        # print("\n scan begin \n")
+        
+        # scan_pat = "raster"
+        # cols = 14
+        # rows = 14
+        # #quarter wavelength step size ex.21 GHz
+        # step_size = 14.27
+        # # Create matrix with alternating column signs
+        # matrix = np.array([[step_size * (-1)**j for j in range(cols)] for _ in range(rows)])
+        # print(f"\n {matrix} \n")
+        # for col in range(cols):
+        #     for row in range(rows):
+        #         print(f"\n {matrix[row, col]} \n")
+        #         self._motion_controller.move_absolute({1: matrix[row, col]})
+        #         time.sleep(1)# Y axis
+        #     self._motion_controller.move_absolute({0: step_size})
+        #     time.sleep(1)
             
         # mat = [20,20,20]
         # for i in range (0,len(mat)):
