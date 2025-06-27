@@ -1,6 +1,5 @@
-import globals
-from typing import Iterable
 
+from typing import Iterable
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
@@ -163,6 +162,24 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
+        
+        raster_btn = QPushButton("Raster Pattern")
+        raster_btn.clicked.connect(self.raster_patt)
+        self.ui.config_layout.addRow(raster_btn)
+        
+        hilbert_btn = QPushButton("Hilbert Curve Pattern")
+        hilbert_btn.clicked.connect(self.hilbert_patt)
+        self.ui.config_layout.addRow(hilbert_btn)
+        
+        rot_btn = QPushButton("Rotate Pattern")
+        rot_btn.clicked.connect(self.rotate_patt)
+        self.ui.config_layout.addRow(rot_btn)
+        
+        shear_btn = QPushButton("Shear Pattern")
+        shear_btn.clicked.connect(self.shear_patt)
+        self.ui.config_layout.addRow(shear_btn)
+        
+        
 
     @Slot(bool)
     def configure_file(self, was_selected: bool) -> None:
@@ -257,6 +274,21 @@ class MainWindow(QMainWindow):
         else: 
             pass 
 
+    def raster_patt(self):
+        # mid scan frequency ? 
+        # scan box side length in mm 
+        pass
+
+    def hilbert_patt(self):
+        # mid scan frequency ? 
+        # scan box side length in mm 
+        pass
+
+    def rotate_patt(self):
+        pass
+
+    def shear_patt(self):
+        pass
 
 
     # TODO:
