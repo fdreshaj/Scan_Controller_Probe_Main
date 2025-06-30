@@ -25,6 +25,9 @@ import threading
 import multiprocessing
 import time
 import raster_pattern_generator
+from PySide6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, QSlider, QWidget
+from PySide6.QtCore import Qt, QTimer, QThread
+from PySide6.QtGui import QPainter, QPen, QPaintEvent
 
 class Scanner():
     _motion_controller: MotionController
@@ -99,7 +102,7 @@ class Scanner():
 
     #TODO: Optimizations 
      
-    def run_scan(self) -> None:
+    def run_scan(self,matrix) -> None:
         
         step_size = 3.725
         negative_step_size = -3.725
@@ -113,7 +116,8 @@ class Scanner():
         # matrix = raster_pattern_generator.create_pattern_matrix(n)
         # matrix = raster_pattern_generator.rotate_points(matrix,np.deg2rad(45))
         #raster_pattern_generator.plot(matrix,n)
-        matrix = raster_pattern_generator.hilbert_curve(n)
+        if matrix == None:
+            matrix = raster_pattern_generator.create_pattern_matrix(n)
         
         for i in range (0,len(matrix[0])):
             if i == 0:

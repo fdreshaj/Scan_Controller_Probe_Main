@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
-
+fig = None
+ax = None
 def create_pattern_matrix(n):
     #generates (n+1)^2 (x,y) column
     row1 = np.repeat(np.arange(n+1), n+1)
@@ -59,13 +60,13 @@ def plot(mat,n):
     plt.grid(True)
     plt.axis('equal')
     plt.show()
-    
+
 def hilbert_curve(n):
     # https://blogs.mathworks.com/steve/2012/01/25/generating-hilbert-curves/
     # the number of points is related by 4^order, setting max order to 8 for now due to rapid growth 
     # if you want to manipulate the curve you need to change z, you can translate, rotate, scale etc.
     #will not be the same as the normal matrix for non order of 2 powers, working on fixing that
-    order = int(np.log2(n))
+    order = n
     if order <= 8: 
         a = 1 + 1j
         b = 1 - 1j
@@ -85,3 +86,9 @@ def hilbert_curve(n):
         print("4^k points, k<0 does not make sense to have fractional number of points")
 
     return np.vstack((z.real, z.imag))
+
+def time_approx(n,mat_type="Raster"):
+    if mat_type == "Raster":
+        time_h = (1/60)*(1/60)*(n+1)**2
+        
+    return time_h

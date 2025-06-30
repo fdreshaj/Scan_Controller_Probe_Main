@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import simpledialog
 from tkinter import filedialog as fd
 from tkinter import messagebox
+
+import scipy.constants
 from gui.scanner_qt import ScannerQt
 from gui.ui_scanner_plotter_version import Ui_MainWindow
 from gui.qt_util import QPluginSetting
@@ -22,6 +24,10 @@ import scanner.Plugins as plugin_pkg
 from scanner.probe_controller import ProbeController
 import gui.select_plot_style as select_plot_style
 import gui.select_plot_hide as select_plot_hide
+import raster_pattern_generator as scan_pattern_gen
+import numpy as np
+import scipy
+import re
 # import matplotlib
 # matplotlib.use('QtAgg')
 # from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -228,7 +234,9 @@ class MainWindow(QMainWindow):
         
         
     def test_scan_bt(self):
-        self.scanner.scanner.run_scan()
+     
+        
+        self.scanner.scanner.run_scan(self.movement_mat)
         
     def display_Pop_up(self):
     
@@ -277,19 +285,93 @@ class MainWindow(QMainWindow):
     def raster_patt(self):
         # mid scan frequency ? 
         # scan box side length in mm 
-        pass
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+
+        # Ask for scan box side length
+        length = simpledialog.askfloat("Scan Length", "Enter scan length in mm:", minvalue=1.0)
+        if length is None:
+            print("Operation cancelled.")
+            return
+
+        # Ask for step size
+        step_size = simpledialog.askstring("Center Frequency", "Enter Center Frequency:")
+        if step_size is None:
+            print("Operation cancelled.")
+            return
+        
+        step_size =  parse_frequency_input(step_size)
+        #quarter wavelength step size quarter wavelength and conversion to mm
+        step_size = (scipy.constants.nu2lambda(step_size)/4) * (1000)
+       
+        print(f"step size: {step_size}")
+        
+        self.points = int(length/step_size)
+        
+        estimated_time_hours = scan_pattern_gen.time_approx(self.points, mat_type="Raster")
+
+     
+        messagebox.showinfo("Estimated Scan Time", 
+                            f"The scan will generate approximately {self.points**2} points.\n"
+                            f"Estimated time for the scan: {estimated_time_hours:.2f} hours.")
+
+        # Close the Tkinter root window
+        
+        
+        root.destroy()
+        self.movement_mat = scan_pattern_gen.create_pattern_matrix(self.points)
+        
+        #add thread here for plotting matrix pattern and not bricking the program
+        
+        scan_pattern_gen.plot(self.movement_mat,self.points)
+        
 
     def hilbert_patt(self):
         # mid scan frequency ? 
         # scan box side length in mm 
-        pass
+        
+        self.hilbert_mat = scan_pattern_gen.hilbert_curve(4)
+        
+        scan_pattern_gen.plot(self.hilbert_mat,4)
+        
 
     def rotate_patt(self):
-        pass
+        root = tk.Tk()
+        root.withdraw()  
 
+       #using degrees because feels more natural than rad, can change if needed 
+        deg_input = simpledialog.askfloat("Degree Rotation CC", "Enter in deg (Counter Clockwise rotation):", minvalue=1.0)
+        if deg_input is None:
+            print("Operation cancelled.")
+            return
+        root.destroy()
+        self.rot_mat= self.movement_mat
+        self.rot_mat = scan_pattern_gen.rotate_points(self.rot_mat,np.deg2rad(deg_input))
+        
+        scan_pattern_gen.plot(self.rot_mat,self.points)
+        self.movement_mat = self.rot_mat
+        
     def shear_patt(self):
-        pass
+        root = tk.Tk()
+        root.withdraw()  
 
+       
+        shear_input_x = simpledialog.askfloat("Shear X", "Enter X Shear", minvalue=0)
+        if shear_input_x is None:
+            print("Operation cancelled.")
+            return
+        shear_input_y = simpledialog.askfloat("Shear Y", "Enter Y Shear", minvalue=0)
+        if shear_input_x is None:
+            print("Operation cancelled.")
+            return
+        
+        root.destroy()
+        self.shear_mat= self.movement_mat
+        self.shear_mat = scan_pattern_gen.apply_shear(self.shear_mat,shear_input_x,shear_input_y)
+        
+        scan_pattern_gen.plot(self.shear_mat,self.points)
+        self.movement_mat = self.shear_mat        
+    
 
     # TODO:
     def back_function_motion(self):
@@ -461,7 +543,35 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)
+def parse_frequency_input(freq_str):
+    """
+    Parses a frequency string, extracting the numerical value and unit,
+    and returns the frequency in Hz.
+    Handles units like Hz, kHz, MHz, GHz.
+    """
+    freq_str = freq_str.strip()
+    match = re.match(r"([\d.]+)\s*([a-zA-Z]+)", freq_str)
 
+    if match:
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+
+        if unit == "hz":
+            return value
+        elif unit == "khz":
+            return value * 1e3
+        elif unit == "mhz":
+            return value * 1e6
+        elif unit == "ghz":
+            return value * 1e9
+        else:
+            raise ValueError(f"Unknown frequency unit: {unit}. Please use Hz, kHz, MHz, or GHz.")
+    else:
+        # If no unit is specified, assume Hz
+        try:
+            return float(freq_str)
+        except ValueError:
+            raise ValueError("Invalid frequency format. Please include a number and optional unit (e.g., '100 Hz', '10 kHz', '2.4 GHz').")
 if __name__ == "__main__":
     app = QApplication([])
     window = MainWindow()
