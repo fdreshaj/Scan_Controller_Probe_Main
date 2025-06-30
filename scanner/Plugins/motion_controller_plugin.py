@@ -240,7 +240,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             is_negative = 1
             raw_value = int(abs(raw_value))
         
-        self.get_current_positions()
+        
         
         raw_value = int(raw_value*pos_mult*micro_mult)
         
@@ -251,11 +251,11 @@ class motion_controller_plugin(MotionControllerPlugin):
         high_last_pair = (binary_x >> 16) & 0xFF
         low_first_pair = (binary_x >> 8) & 0xFF
         low_last_pair = binary_x & 0xFF
-    
-        self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
-            
         
-        self.get_current_positions()
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+        
+        
+        
 
         
     def home(self, axes=None):
@@ -286,10 +286,106 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         print(f"Position {self.tokens[8],self.tokens[9],self.tokens[10]}")
         
+    def is_moving(self,axis='X'):
         
-    def is_moving(self):
-      pass
+        axis = axis.upper()
+        if axis not in ['X', 'Y', 'Z', 'W']: # Added Z and W for completeness, though user only asked for X, Y
+            print("Invalid axis specified. Please choose 'X', 'Y', 'Z', or 'W'.")
+            return
+
+        print(f"Waiting for motor {axis}-axis to become ready...")
+
+        # The QUERY_LONG command itself. This is an example, replace with the actual bytes you send.
+        query_long_command = bytes([0x08, 0x00])
+            
+        self.serial_port.write(query_long_command) 
+
+        
+        expected_response_length = 2 
+        axis_offset_map = {'X': 0, 'Y': 10, 'Z': 20, 'W': 30} 
+
        
+        expected_response_length += max(axis_offset_map['Y'] + 10, axis_offset_map[axis] + 10)
+
+        is_busy = True
+        while is_busy:
+            try:
+                # 1. Send the QUERY_LONG command
+                self.serial_port.write(query_long_command)
+
+                # 2. Read the full response for all relevant axes
+                response = self.serial_port.read(expected_response_length)
+
+                # Ensure we received enough data for the specified axis
+                # Response starts after 2-byte prefix, then each axis is 10 bytes
+                start_index = 2 + axis_offset_map[axis]
+                end_index = start_index + 10
+
+                if len(response) >= end_index:
+                    # Extract the 10-byte block for the specific axis
+                    axis_data_block = response[start_index:end_index]
+
+                    # Byte 1 of the axis's 10-byte data block (which is the first byte of axis_data_block)
+                    drive_status_byte_1 = axis_data_block[0]
+
+                    # 3. Check Bit 2 (0-indexed) for Busy/Ready status (0x04 for 00000100 binary)
+                    # If bit 2 is 0, it means Ready.
+                    if (drive_status_byte_1 & 0x04) == 0:
+                        is_busy = False
+                        print(f"Motor {axis}-axis is ready!")
+                    else:
+                        print(f"Motor {axis}-axis is still busy. Checking again...")
+                        time.sleep(0.01) # Small delay to prevent rapid polling
+                else:
+                    print(f"Incomplete response received for {axis}-axis. Expected at least {end_index} bytes, got {len(response)}. Retrying...")
+                    time.sleep(0.05) # Wait a bit longer if response is incomplete
+
+            except Exception as e:
+                print(f"Error during communication: {e}")
+                time.sleep(0.1)    
+                
+            
+    # def is_moving(self):
+        
+    #     query_long_command = bytes([0x08, 0x00])
+        
+    #     self.serial_port.write(query_long_command)
+        
+    #     axis_offset_map = {'X': 0, 'Y': 10, 'Z': 20, 'W': 30}
+    #     is_busy = True
+    #     while is_busy:
+    #         try:
+    #             # 1. Send the QUERY_LONG command
+    #             self.serial_port.write(query_long_command)
+
+    #             # 2. Read the full response for all relevant axes
+    #             response = self.serial_port.read(22)
+
+    #             # Ensure we received enough data for the specified axis
+    #             # Response starts after 2-byte prefix, then each axis is 10 bytes
+    #             start_index = 2 + axis_offset_map[axis]
+    #             end_index = start_index + 10
+
+    #             if len(response) >= end_index:
+    #                 # Extract the 10-byte block for the specific axis
+    #                 axis_data_block = response[start_index:end_index]
+
+    #                 # Byte 1 of the axis's 10-byte data block (which is the first byte of axis_data_block)
+    #                 drive_status_byte_1 = axis_data_block[0]
+
+    #                 # 3. Check Bit 2 (0-indexed) for Busy/Ready status (0x04 for 00000100 binary)
+    #                 # If bit 2 is 0, it means Ready.
+    #                 if (drive_status_byte_1 & 0x04) == 0:
+    #                     is_busy = False
+    #                     print(f"Motor -axis is ready!")
+    #                 else:
+    #                     print(f"Motor -axis is still busy. Checking again...")
+    #                     time.sleep(0.01) # Small delay to prevent rapid polling
+        
+    #         except Exception as e:
+    #             print(f"Error during communication: {e}")
+    #             time.sleep(0.1)
+                
          
     def get_endstop_minimums(self):
         pass

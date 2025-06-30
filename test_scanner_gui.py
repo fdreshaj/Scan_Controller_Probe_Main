@@ -234,9 +234,9 @@ class MainWindow(QMainWindow):
         
         
     def test_scan_bt(self):
-     
+        self.negative_step_size = np.negative(self.step_size)
         
-        self.scanner.scanner.run_scan(self.movement_mat)
+        self.scanner.scanner.run_scan(self.movement_mat,self.length,self.step_size,self.negative_step_size)
         
     def display_Pop_up(self):
     
@@ -289,24 +289,24 @@ class MainWindow(QMainWindow):
         root.withdraw()  # Hide the main window
 
         # Ask for scan box side length
-        length = simpledialog.askfloat("Scan Length", "Enter scan length in mm:", minvalue=1.0)
-        if length is None:
+        self.length = simpledialog.askfloat("Scan Length", "Enter scan length in mm:", minvalue=1.0)
+        if self.length is None:
             print("Operation cancelled.")
             return
 
         # Ask for step size
-        step_size = simpledialog.askstring("Center Frequency", "Enter Center Frequency:")
-        if step_size is None:
+        self.step_size = simpledialog.askfloat("Step Size ", "Enter step size in mm: ")
+        if self.step_size is None:
             print("Operation cancelled.")
             return
         
-        step_size =  parse_frequency_input(step_size)
-        #quarter wavelength step size quarter wavelength and conversion to mm
-        step_size = (scipy.constants.nu2lambda(step_size)/4) * (1000)
+        # self.step_size =  parse_frequency_input(self.step_size)
+        # #quarter wavelength step size quarter wavelength and conversion to mm
+        # self.step_size = (scipy.constants.nu2lambda(self.step_size)/4) * (1000)
        
-        print(f"step size: {step_size}")
+        print(f"step size: {self.step_size}")
         
-        self.points = int(length/step_size)
+        self.points = int(self.length/self.step_size)
         
         estimated_time_hours = scan_pattern_gen.time_approx(self.points, mat_type="Raster")
 

@@ -102,49 +102,67 @@ class Scanner():
 
     #TODO: Optimizations 
      
-    def run_scan(self,matrix) -> None:
-        
-        step_size = 3.725
-        negative_step_size = -3.725
-        
-        length = 200
-
-        n = int(length/step_size)
+    def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
+        x_axis_pos = 0
+        y_axis_pos = 0
+      
         negative_thresh = -0.01
         positive_thresh = 0.01
-        
-        # matrix = raster_pattern_generator.create_pattern_matrix(n)
-        # matrix = raster_pattern_generator.rotate_points(matrix,np.deg2rad(45))
-        #raster_pattern_generator.plot(matrix,n)
-        if matrix == None:
-            matrix = raster_pattern_generator.create_pattern_matrix(n)
-        
+    
+
         for i in range (0,len(matrix[0])):
             if i == 0:
                 print("First scan in place, no movement")
             else:
-                difference = matrix[:,i] - matrix[:,i-1]
                 
+                difference = matrix[:,i] - matrix[:,i-1]
+                #x axis
                 if difference[0] > positive_thresh:
-                    #x axis
-                    self._motion_controller.move_absolute({0:step_size})
+                    
+                
+                    self._motion_controller.is_moving("X")
+                    if x_axis_pos-step_size > -225:
+                        self._motion_controller.move_absolute({0:step_size})
+                    else: 
+                        print("Motion Stopped due to user set boundary")
+                    x_axis_pos = x_axis_pos - step_size
+                    #busy_bit = self._motion_controller.is_moving()
                 
                 elif difference[0] < negative_thresh:
-                    
-                    self._motion_controller.move_absolute({0:negative_step_size})
-                    
-                    
-                if difference[1] > positive_thresh:
-                    #y axis
-                    self._motion_controller.move_absolute({1:step_size})
-                    
-                elif difference[1] < negative_thresh:
-                    
-                    self._motion_controller.move_absolute({1:negative_step_size})
-            
-                time.sleep(1)
+                    #while busy_bit[0] != 224:
+                    #busy_bit = self._motion_controller.is_moving()
+                    self._motion_controller.is_moving("X")
+                    if x_axis_pos + step_size < 0:
+                        self._motion_controller.move_absolute({0:negative_step_size})
+                    else:
+                        print("Motion Stopped due to user set boundary")
 
-        
+                    x_axis_pos = x_axis_pos + step_size
+                    #busy_bit = self._motion_controller.is_moving()
+                    
+                #y axis
+                if difference[1] > positive_thresh:
+                   #while busy_bit[0] != 224:
+                   #busy_bit = self._motion_controller.is_moving()
+                   self._motion_controller.is_moving("Y")
+                   if y_axis_pos - step_size > -225:
+                        self._motion_controller.move_absolute({1:step_size})
+                   else:
+                       print("Motion Stopped due to user set boundary")
+                   y_axis_pos = y_axis_pos - step_size
+                   #busy_bit = self._motion_controller.is_moving()
+                elif difference[1] < negative_thresh:
+                    #while busy_bit[0] != 224:
+                    #busy_bit = self._motion_controller.is_moving()
+                    self._motion_controller.is_moving("Y")
+                    if y_axis_pos + step_size < 0:
+                        self._motion_controller.move_absolute({1:negative_step_size})
+                    else:
+                        print("Motion Stopped due to user set boundary")
+                    y_axis_pos = y_axis_pos + step_size
+                
+                #time.sleep(1) # just for testing,  check busy bit for the token
+                
         
         
 
