@@ -250,6 +250,7 @@ class MoveInsn(AxisInsn):
             print(f"Warning: {('Relative move' if relative else 'Move')} amount {n} out of range for axis {axis}")
     def is_fast(self):
         return False
+    
 class ConfigureInsn(AxisInsn):
     """Configure instructions.
     axis CONFIGURE i AMPS, IDLE AT p% AFTER s SECONDS

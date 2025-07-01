@@ -294,7 +294,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             
     def is_moving(self):
         
-        query_long_command = bytes([0x08, 0x00])        
+        query_long_command = bytes([0x08, 0x00])         
         
         
         self.serial_port.write(query_long_command)

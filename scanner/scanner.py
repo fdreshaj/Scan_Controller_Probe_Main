@@ -109,7 +109,7 @@ class Scanner():
       
         negative_thresh = -0.01
         positive_thresh = 0.01
-    
+        self.scan_end = False
 
         for i in range (0,len(matrix[0])):
             if i == 0:
@@ -185,7 +185,10 @@ class Scanner():
                         
                 #time.sleep(1) # just for testing,  check busy bit for the token
                 
+        self.scan_end = True 
         
+    
+    
         
 
     def close(self) -> None:

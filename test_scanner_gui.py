@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import simpledialog
 from tkinter import filedialog as fd
 from tkinter import messagebox
-
+import threading
 import scipy.constants
 from gui.scanner_qt import ScannerQt
 from gui.ui_scanner_plotter_version import Ui_MainWindow
@@ -236,8 +236,13 @@ class MainWindow(QMainWindow):
     def test_scan_bt(self):
         self.negative_step_size = np.negative(self.step_size)
         
-        self.scanner.scanner.run_scan(self.movement_mat,self.length,self.step_size,self.negative_step_size)
+        #self.checkThread = threading.Thread(target=self.checkThread)
         
+        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(self.movement_mat,self.length,self.step_size,self.negative_step_size))
+        
+        self.scan_thread.start()
+        
+            
     def display_Pop_up(self):
     
         self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
