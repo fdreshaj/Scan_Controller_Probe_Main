@@ -100,7 +100,8 @@ class Scanner():
             
         
 
-    #TODO: Optimizations 
+    #TODO: Optimizations, after fixing movement with qlongs add probe scanning 
+     
      
     def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
         x_axis_pos = 0
@@ -113,6 +114,7 @@ class Scanner():
         for i in range (0,len(matrix[0])):
             if i == 0:
                 print("First scan in place, no movement")
+                # SCAN
             else:
                 
                 difference = matrix[:,i] - matrix[:,i-1]
@@ -120,47 +122,67 @@ class Scanner():
                 if difference[0] > positive_thresh:
                     
                 
-                    self._motion_controller.is_moving("X")
+                    
                     if x_axis_pos-step_size > -225:
                         self._motion_controller.move_absolute({0:step_size})
                     else: 
                         print("Motion Stopped due to user set boundary")
                     x_axis_pos = x_axis_pos - step_size
-                    #busy_bit = self._motion_controller.is_moving()
-                
+                    
+                    busy_bit = self._motion_controller.is_moving()
+                    
+                    while busy_bit[0] != 224:
+                        busy_bit = self._motion_controller.is_moving()
+                    #self._motion_controller.is_moving()
+                    
                 elif difference[0] < negative_thresh:
                     #while busy_bit[0] != 224:
                     #busy_bit = self._motion_controller.is_moving()
-                    self._motion_controller.is_moving("X")
+                    
                     if x_axis_pos + step_size < 0:
                         self._motion_controller.move_absolute({0:negative_step_size})
                     else:
                         print("Motion Stopped due to user set boundary")
 
                     x_axis_pos = x_axis_pos + step_size
-                    #busy_bit = self._motion_controller.is_moving()
                     
+                    
+                    busy_bit = self._motion_controller.is_moving()
+                    while busy_bit[0] != 224:
+                        busy_bit = self._motion_controller.is_moving()
+        
+                    #self._motion_controller.is_moving()
                 #y axis
                 if difference[1] > positive_thresh:
                    #while busy_bit[0] != 224:
                    #busy_bit = self._motion_controller.is_moving()
-                   self._motion_controller.is_moving("Y")
+                   
                    if y_axis_pos - step_size > -225:
                         self._motion_controller.move_absolute({1:step_size})
                    else:
                        print("Motion Stopped due to user set boundary")
                    y_axis_pos = y_axis_pos - step_size
+                   busy_pos_y = True
+                   busy_bit = self._motion_controller.is_moving()
+                   while busy_bit[1] != 225:
+                      busy_bit = self._motion_controller.is_moving()
+                    
                    #busy_bit = self._motion_controller.is_moving()
                 elif difference[1] < negative_thresh:
                     #while busy_bit[0] != 224:
                     #busy_bit = self._motion_controller.is_moving()
-                    self._motion_controller.is_moving("Y")
+                    
                     if y_axis_pos + step_size < 0:
                         self._motion_controller.move_absolute({1:negative_step_size})
                     else:
                         print("Motion Stopped due to user set boundary")
                     y_axis_pos = y_axis_pos + step_size
-                
+                    
+                   
+                    busy_bit = self._motion_controller.is_moving()
+                    while busy_bit[1] != 225:
+                        busy_bit = self._motion_controller.is_moving()
+                        
                 #time.sleep(1) # just for testing,  check busy bit for the token
                 
         

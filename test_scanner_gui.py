@@ -543,12 +543,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)
+    
 def parse_frequency_input(freq_str):
-    """
-    Parses a frequency string, extracting the numerical value and unit,
-    and returns the frequency in Hz.
-    Handles units like Hz, kHz, MHz, GHz.
-    """
+    
     freq_str = freq_str.strip()
     match = re.match(r"([\d.]+)\s*([a-zA-Z]+)", freq_str)
 
