@@ -1,5 +1,4 @@
 
-from typing import Iterable
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
@@ -8,44 +7,21 @@ from tkinter import simpledialog
 from tkinter import filedialog as fd
 from tkinter import messagebox
 import threading
-import scipy.constants
 from gui.scanner_qt import ScannerQt
 from gui.ui_scanner_plotter_version import Ui_MainWindow
 from gui.qt_util import QPluginSetting
-from scanner import scanner
-from scanner.plugin_setting import PluginSetting
-#from scanner.VNA_Plugin import VNAProbePlugin
-from scanner.probe_controller import ProbePlugin
-from scanner.plugin_switcher import PluginSwitcher
-from scanner.plugin_switcher_motion import PluginSwitcherMotion
-import pkgutil
-import importlib
-import scanner.Plugins as plugin_pkg
-from scanner.probe_controller import ProbeController
 import gui.select_plot_style as select_plot_style
 import gui.select_plot_hide as select_plot_hide
 import raster_pattern_generator as scan_pattern_gen
 import numpy as np
-import scipy
-import re
-# import matplotlib
-# matplotlib.use('QtAgg')
-# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-# from matplotlib.figure import Figure
-# from  gui.plotter import plotter_system
+
+
+
 import matplotlib
-matplotlib.use('QtAgg') # <--- Ensure this line is exactly 'QtAgg' and is at the top
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas # <--- CHANGE THIS LINE
+matplotlib.use('QtAgg') 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas 
 from matplotlib.figure import Figure
 from  gui.plotter import plotter_system
-# for finder, module_name, ispkg in pkgutil.iter_modules(plugin_pkg.__path__):
-#     importlib.import_module(f"scanner.Plugins.{module_name}")
-
-########      FIX NOTES 
-# Noticed in testing that position multiplier might need to be lowered a small amount it was overshooting a bit 
-# Velocity on Query Long
-#
-######## 
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
@@ -145,9 +121,7 @@ class MainWindow(QMainWindow):
 
 
         self.back_btn_check = False
-        # back_btn = QPushButton("Back")
-        # back_btn.clicked.connect(self.back_function)
-        # self.ui.config_layout.addRow(back_btn)    
+          
             
     @Slot()
     def connect_probe(self):
@@ -209,6 +183,7 @@ class MainWindow(QMainWindow):
         test_scan = QPushButton("Test Scan")
         test_scan.clicked.connect(self.test_scan_bt)
         self.ui.config_layout.addRow(test_scan)
+        
     def plot_settings(self):
         
         display_Pop_up = QPushButton("Display Pop Up")
@@ -234,17 +209,13 @@ class MainWindow(QMainWindow):
         
         
     def test_scan_bt(self):
+        
         self.negative_step_size = np.negative(self.step_size)
-        
-        #self.checkThread = threading.Thread(target=self.checkThread)
-        
         self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(self.movement_mat,self.length,self.step_size,self.negative_step_size))
-        
         self.scan_thread.start()
         
             
     def display_Pop_up(self):
-    
         self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
         
         
@@ -254,13 +225,13 @@ class MainWindow(QMainWindow):
         self.processed_data=self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
     
     def sel_hide_channel(self):
-        
         selected_hidden = select_plot_hide.select_plot_hide(4)
         self.plotter.set_trace_visibility(selected_hidden)
     
+    
     def dsp_settings(self):
         self.invfft = self.plotter.invFFT_plot(self.s_param_names,self.processed_data,)
-        #self.fft = self.plotter.FFT_plot(self.s_param_names,self.invfft) 
+        
     
     def plot_plugins(self):
         pass
@@ -286,30 +257,26 @@ class MainWindow(QMainWindow):
             self.pluginChosen_probe = False
         else: 
             pass 
-
+                
     def raster_patt(self):
         # mid scan frequency ? 
         # scan box side length in mm 
         root = tk.Tk()
-        root.withdraw()  # Hide the main window
+        root.withdraw()  
 
-        # Ask for scan box side length
+    
         self.length = simpledialog.askfloat("Scan Length", "Enter scan length in mm:", minvalue=1.0)
         if self.length is None:
             print("Operation cancelled.")
             return
 
-        # Ask for step size
+     
         self.step_size = simpledialog.askfloat("Step Size ", "Enter step size in mm: ")
         if self.step_size is None:
             print("Operation cancelled.")
             return
         
-        # self.step_size =  parse_frequency_input(self.step_size)
-        # #quarter wavelength step size quarter wavelength and conversion to mm
-        # self.step_size = (scipy.constants.nu2lambda(self.step_size)/4) * (1000)
-       
-        print(f"step size: {self.step_size}")
+    
         
         self.points = int(self.length/self.step_size)
         
@@ -320,13 +287,13 @@ class MainWindow(QMainWindow):
                             f"The scan will generate approximately {self.points**2} points.\n"
                             f"Estimated time for the scan: {estimated_time_hours:.2f} hours.")
 
-        # Close the Tkinter root window
+     
         
         
         root.destroy()
+        
         self.movement_mat = scan_pattern_gen.create_pattern_matrix(self.points)
         
-        #add thread here for plotting matrix pattern and not bricking the program
         
         scan_pattern_gen.plot(self.movement_mat,self.points)
         
@@ -343,8 +310,6 @@ class MainWindow(QMainWindow):
     def rotate_patt(self):
         root = tk.Tk()
         root.withdraw()  
-
-       #using degrees because feels more natural than rad, can change if needed 
         deg_input = simpledialog.askfloat("Degree Rotation CC", "Enter in deg (Counter Clockwise rotation):", minvalue=1.0)
         if deg_input is None:
             print("Operation cancelled.")
@@ -388,35 +353,24 @@ class MainWindow(QMainWindow):
         
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
-        #globals.value_flag = controller.settings_pre_connect[0].value
+      
         
         if connected:
-            #print debugging
+           
             if self.pluginChosen_motion == False:
-                print(PluginSwitcherMotion.plugin_name)
-                
-                print(PluginSwitcherMotion.plugin_name)
-                
-                print(PluginSwitcherMotion.plugin_name)
-                print(controller.settings_pre_connect[0].value)
-
-
+               
                 for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
             
                 old_probe = self.scanner.scanner.probe_controller
-                #newProbeInst = PluginSwitcher.plugin_name
-            
-                # re‐instantiate Scanner
+               
                 from scanner.scanner import Scanner
                 self.scanner.scanner = Scanner(probe_controller=old_probe)
 
                 self.configure_motion(True)
                 connected = False
                 self.pluginChosen_motion = True
-                # back_btn = QPushButton("Back")
-                # back_btn.clicked.connect(self.back_function)
-                # self.ui.config_layout.addRow(back_btn)
+    
 
             elif self.pluginChosen_motion == True:
                 for setting in controller.settings_pre_connect:
@@ -430,31 +384,15 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
                 self.scan_testing()
-                # self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
-                # self.setup_plotting_canvas()
-                # plot_btn = QPushButton("Plot")
-                # plot_btn.clicked.connect(self.plot_btn)   
-                # self.ui.config_layout.addRow(plot_btn)
-
-                # save_btn = QPushButton("Save Data")
-                # save_btn.clicked.connect(self.save_btn)   
-                # self.ui.config_layout.addRow(save_btn)
-
-                # back_btn = QPushButton("Back")
-                # back_btn.clicked.connect(self.back_function)
-                # self.ui.config_layout.addRow(back_btn)
 
         else:
-                print(controller)
-                print(controller)
+                
                 for setting in controller.settings_pre_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
                 connect_button = QPushButton("Connect")
                 connect_button.clicked.connect(connect_function)
                 self.ui.config_layout.addRow(connect_button)
-                # back_btn = QPushButton("Back")
-                # back_btn.clicked.connect(self.back_function)
-                # self.ui.config_layout.addRow(back_btn)
+                
                 for setting in controller.settings_post_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
@@ -467,22 +405,15 @@ class MainWindow(QMainWindow):
         
     
         if connected:
-            #print debugging
+            
             if self.pluginChosen_probe == False:
-                print(PluginSwitcher.plugin_name)
-                
-                print(PluginSwitcher.plugin_name)
-                
-                print(PluginSwitcher.plugin_name)
-                print(controller.settings_pre_connect[0].value)
-
-
+            
                 for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
                     
-                #self.back_btn_check = False
+                
                 old_motion = self.scanner.scanner.motion_controller
-                #newProbeInst = PluginSwitcher.plugin_name
+                
             
                 # re‐instantiate Scanner
                 from scanner.scanner import Scanner
@@ -521,8 +452,7 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(back_btn)
 
         else:
-                print(controller)
-                print(controller)
+                
                 for setting in controller.settings_pre_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
                 connect_button = QPushButton("Connect")
@@ -540,40 +470,16 @@ class MainWindow(QMainWindow):
                     back_btn = QPushButton("Back")
                     back_btn.clicked.connect(self.back_function)
                     self.ui.config_layout.addRow(back_btn)
+                    
     def setup_plotting_canvas(self) -> None:
         main_layout = self.ui.main_layout 
-        # Add the plotter_system widget to the main layout
+       
         main_layout.addWidget(self.plotter, 1, 5)
         
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)
-    
-def parse_frequency_input(freq_str):
-    
-    freq_str = freq_str.strip()
-    match = re.match(r"([\d.]+)\s*([a-zA-Z]+)", freq_str)
 
-    if match:
-        value = float(match.group(1))
-        unit = match.group(2).lower()
-
-        if unit == "hz":
-            return value
-        elif unit == "khz":
-            return value * 1e3
-        elif unit == "mhz":
-            return value * 1e6
-        elif unit == "ghz":
-            return value * 1e9
-        else:
-            raise ValueError(f"Unknown frequency unit: {unit}. Please use Hz, kHz, MHz, or GHz.")
-    else:
-        # If no unit is specified, assume Hz
-        try:
-            return float(freq_str)
-        except ValueError:
-            raise ValueError("Invalid frequency format. Please include a number and optional unit (e.g., '100 Hz', '10 kHz', '2.4 GHz').")
 if __name__ == "__main__":
     app = QApplication([])
     window = MainWindow()

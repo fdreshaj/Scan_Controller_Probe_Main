@@ -1,33 +1,10 @@
 
-from itertools import product
-import time
-
-from scanner.plugin_setting import PluginSetting
-import os 
-import sys 
-import importlib.util
 from scanner.motion_controller import MotionController
 from scanner.probe_controller import ProbeController
-import tkinter as tk
-from tkinter import simpledialog
-from tkinter import filedialog as fd
-from scanner.gcode_simulator import GcodeSimulator
-from scanner.probe_simulator import ProbeSimulator
-from scanner.Plugins.motion_controller_plugin import motion_controller_plugin
-#from scanner.VNA_Plugin import VNAProbePlugin
 from scanner.plugin_switcher import PluginSwitcher
 from scanner.plugin_switcher_motion import PluginSwitcherMotion
 import importlib
-import scanner.Plugins as plugin_pkg
-import numpy as np
-#optimization TODO: 
-import threading
-import multiprocessing
-import time
-import raster_pattern_generator
-from PySide6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, QSlider, QWidget
-from PySide6.QtCore import Qt, QTimer, QThread
-from PySide6.QtGui import QPainter, QPen, QPaintEvent
+
 
 class Scanner():
     _motion_controller: MotionController
@@ -97,19 +74,13 @@ class Scanner():
         else:
             self._motion_controller = MotionController(self.plugin_Motion)
             
-            
-        
-
-    #TODO: Optimizations, after fixing movement with qlongs add probe scanning 
-     
-     
+    
     def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
         x_axis_pos = 0
         y_axis_pos = 0
       
         negative_thresh = -0.01
         positive_thresh = 0.01
-        self.scan_end = False
 
         for i in range (0,len(matrix[0])):
             if i == 0:
@@ -121,7 +92,6 @@ class Scanner():
                 #x axis
                 if difference[0] > positive_thresh:
                     
-                
                     
                     if x_axis_pos-step_size > -225:
                         self._motion_controller.move_absolute({0:step_size})
@@ -133,11 +103,10 @@ class Scanner():
                     
                     while busy_bit[0] != 224:
                         busy_bit = self._motion_controller.is_moving()
-                    #self._motion_controller.is_moving()
+                   
                     
                 elif difference[0] < negative_thresh:
-                    #while busy_bit[0] != 224:
-                    #busy_bit = self._motion_controller.is_moving()
+                
                     
                     if x_axis_pos + step_size < 0:
                         self._motion_controller.move_absolute({0:negative_step_size})
@@ -151,26 +120,21 @@ class Scanner():
                     while busy_bit[0] != 224:
                         busy_bit = self._motion_controller.is_moving()
         
-                    #self._motion_controller.is_moving()
                 #y axis
                 if difference[1] > positive_thresh:
-                   #while busy_bit[0] != 224:
-                   #busy_bit = self._motion_controller.is_moving()
+                   
                    
                    if y_axis_pos - step_size > -225:
                         self._motion_controller.move_absolute({1:step_size})
                    else:
                        print("Motion Stopped due to user set boundary")
                    y_axis_pos = y_axis_pos - step_size
-                   busy_pos_y = True
+                   
                    busy_bit = self._motion_controller.is_moving()
                    while busy_bit[1] != 225:
                       busy_bit = self._motion_controller.is_moving()
-                    
-                   #busy_bit = self._motion_controller.is_moving()
+                   
                 elif difference[1] < negative_thresh:
-                    #while busy_bit[0] != 224:
-                    #busy_bit = self._motion_controller.is_moving()
                     
                     if y_axis_pos + step_size < 0:
                         self._motion_controller.move_absolute({1:negative_step_size})
@@ -183,10 +147,6 @@ class Scanner():
                     while busy_bit[1] != 225:
                         busy_bit = self._motion_controller.is_moving()
                         
-                #time.sleep(1) # just for testing,  check busy bit for the token
-                
-        self.scan_end = True 
-        
     
     
         

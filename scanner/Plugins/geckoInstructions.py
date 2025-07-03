@@ -376,6 +376,9 @@ class OutInsn(AxisInsn):
             raise ValueError("State %d out of range [OFF,ON,BR,RS,ERR]" % state) # Changed CodeError to ValueError
         
         
+        
+        
+########################################## EXAMPLES ###################################
 # motion_insn = MoveInsn(line=0,axis=0,relative=0,n=10,chain=False)
 # print(f"motioninsn {motion_insn.get_binary():#010x}")
 

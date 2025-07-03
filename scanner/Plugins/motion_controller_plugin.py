@@ -4,11 +4,7 @@ from scanner.motion_controller import MotionControllerPlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 import serial
 from serial.tools import list_ports
-import math
-import time
 from scanner.Plugins import geckoInstructions
-import keyboard 
-import threading
 
 
 class motion_controller_plugin(MotionControllerPlugin):
@@ -208,13 +204,13 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def move_absolute(self, move_pos):
        
-        chain_command = []
+       
        
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
         is_negative = 0
-        axis_name = ""
+        
         raw_value = 0
         axis_num = 0
         
@@ -225,14 +221,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         for key, val in move_pos.items():
             raw_value = val
             if key == 0:
-                axis_name = "x"
+                
                 axis_num = 0
             elif key == 1:
-                axis_name = "y"
+                
                 axis_num=1
             else:
                 print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y'.")
-                axis_name = "unknown_axis"
+                
                 axis_num = 1
             break 
 
@@ -260,20 +256,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         
-
-        
     def home(self, axes=None):
-        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x07, 0x05, 0x00]))
-        
-        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00]))
-        
-        
-        #self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x42, 0x00, 0x00]))
-        
-        # if axes =='y':
-        #     self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x42, 0x00, 0x00]))
-        # elif axes == 'x':
-        #      self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x02, 0x00, 0x00]))
         pass
         
     def get_current_positions(self):
