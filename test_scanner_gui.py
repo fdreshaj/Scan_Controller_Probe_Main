@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-
+    ## Fix after 
     def plot_btn(self):
         for i in reversed(range(self.ui.plot_config_wid.rowCount())):
             self.ui.plot_config_wid.removeRow(i)
@@ -207,7 +207,6 @@ class MainWindow(QMainWindow):
         self.ui.plot_config_wid.addRow(plot_plugins)  
         
         
-        
     def test_scan_bt(self):
         
         self.negative_step_size = np.negative(self.step_size)
@@ -234,7 +233,7 @@ class MainWindow(QMainWindow):
         
     
     def plot_plugins(self):
-        pass
+        self.scanner.scanner._probe_controller.scan_trigger_and_wait()
     
     def save_btn(self):
         self.plotter.save()

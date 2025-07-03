@@ -51,47 +51,6 @@ class plotter_system(QWidget):
                 condition = plot_style
             else:
                 condition = "Log Mag"
-                
-            #self.plot_initial_data(condition,freqs, s_param_names,all_s_params_data)
-            # if condition == "Log Mag":
-            #     processed_data = {}
-            #     for name in s_param_names:
-            #         s_data = np.array(all_s_params_data[name])
-            #         processed_data[name] = 20 * np.log10(np.abs(s_data)) 
-            # elif condition == "Phase":
-            #     processed_data = {}
-            #     for name in s_param_names:
-            #         s_data = np.array(all_s_params_data[name])
-            #         processed_data[name] = np.angle(s_data,deg=True)
-            # elif condition == "Real":
-            #     processed_data = {}
-            #     for name in s_param_names:
-            #         s_data = np.array(all_s_params_data[name])
-            #         processed_data[name] = s_data.real
-            # elif condition == "Imag":
-            #     processed_data = {}
-            #     for name in s_param_names:
-            #         s_data = np.array(all_s_params_data[name])
-            #         processed_data[name] = s_data.imag
-            # elif condition == "VSWR":
-            #     processed_data = {}
-            #     for name in s_param_names:
-
-            #         s_data = np.array(all_s_params_data[name])
-            #         m = np.abs(s_data)
-            #         processed_data[name] = (1+m)/(1-m)
-            # elif condition == "Smith":
-            #     processed_data = {}
-            #     for name in s_param_names:
-            #         s_data = np.array(all_s_params_data[name])
-            #         processed_data[name] = np.angle(s_data,deg=True)
-            #         s_mat = s_data.reshape(-1, 1, 1)
-            #         # build the one-port network
-            #         nt = rf.Network(f=freqs, s=s_mat, z0=50)
-            #         # plot the Smith chart
-            #         nt.plot_s_smith()            
-            
-            
             
             return freqs, s_param_names,all_s_params_data
 
@@ -101,11 +60,8 @@ class plotter_system(QWidget):
 
     def plot_initial_data(self, plot_style, freqs, s_param_names, all_s_params_data ):
        
-        # freqs, processed_data, s_param_names,all_s_params_data = self._get_and_process_data()
 
         condition = plot_style
-        
-        
         
         if condition == "Log Mag":
             processed_data = {}
@@ -140,17 +96,8 @@ class plotter_system(QWidget):
                 processed_data[name] = (1+m)/(1-m)
                 units = ""
         elif condition == "Smith":
-            #Work in progress
-            processed_data = {}
-            for name in s_param_names:
-                s_data = np.array(all_s_params_data[name])
-                processed_data[name] = np.angle(s_data,deg=True)
-                s_mat = s_data.reshape(-1, 1, 1)
-                # build the one-port network
-                nt = rf.Network(f=freqs, s=s_mat, z0=50)
-                # plot the Smith chart
-                nt.plot_s_smith()
-                units = ""
+            #Work in progress TODO:
+            pass
         else:
             print("Error Plot Style Invalid")            
         
@@ -161,25 +108,25 @@ class plotter_system(QWidget):
             return
 
         self.static_ax.clear()
-        self.traces.clear() # Clear existing trace references for embedded plot
+        self.traces.clear() 
 
         for name in s_param_names:
             y = processed_data[name]
-            # Store the Line2D object returned by plot/semilogx
+            
             
             line, = self.static_ax.semilogx(freqs, y, label=name) 
-            self.traces[name] = line # Store the line object for visibility control
+            self.traces[name] = line 
 
         self.static_ax.set_xlabel("Frequency (Hz)")
         self.static_ax.set_ylabel(f"{plot_style} {units}")
         self.static_ax.set_title("S-Parameters Scan (Embedded)") 
         self.static_ax.grid(True, which="both")
         self.static_ax.legend()
-        self.static_ax.autoscale() # Ensure axes are scaled correctly
+        self.static_ax.autoscale() 
 
         self.canvas.draw()
         print(f"DEBUG: Plotted S-parameters (Embedded): {', '.join(s_param_names)}")
-        #self.plot_in_popup(plot_style,freqs, s_param_names, processed_data)
+        
         return processed_data
 
     def plot_in_popup(self,plot_style, freqs, s_param_names, processed_data):
@@ -190,8 +137,7 @@ class plotter_system(QWidget):
         
         self.popup_figure = plt.figure(figsize=(8, 6), dpi=100) 
         self.popup_ax = self.popup_figure.add_subplot(111)
-        
-        #self.tracePopup = {}
+      
         for name in s_param_names:
             y = processed_data[name]
             lineTrace,= self.popup_ax.semilogx(freqs, y, label=name)
@@ -247,9 +193,8 @@ class plotter_system(QWidget):
             else:
                 if self.popup_figure is not None:
                     print(f"WARNING: Trace '{name}' not found for pop-up plot visibility toggle.")
-                
                     
-    def save(self, filename=None):
+    def save_csv(self, filename=None):
         if self.plugin is None or self.plugin.vna is None:
             print("Cannot save: VNA plugin not connected or not provided.")
             return
@@ -286,3 +231,5 @@ class plotter_system(QWidget):
 
         except Exception as e:
             print(f"Error during save operation: {e}")
+            
+            

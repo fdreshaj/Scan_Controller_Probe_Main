@@ -7,7 +7,10 @@ from tkinter import ttk
 from tkinter import messagebox
 import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
 import re
-
+import h5py
+import numpy as np
+from datetime import datetime
+import os
 ### This plugin is for the MS46524B 4 port VNA, 
 
 
@@ -84,14 +87,14 @@ class VNA_Plugin(ProbePlugin):
 
 
         self.selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
-        print(self.selected_params)
+       
         self.vna.write(f":CALC1:PAR:COUN {len(self.selected_params)}")
 
         for i in range(1,len(self.selected_params)+1):
+            
             self.vna.write(f"CALC1:PAR{i}:DEF {self.selected_params[i-1]}")
-            print(f"CALC1:PAR{i}:DEF {self.selected_params[i-1]}")
             self.vna.write(f":CALC1:PAR{i}:FORM: REIM")
-            print(f":CALC1:PAR{i}:FORM: REIM")  
+             
 
         # maybe make user changable TODO:
         self.vna.write(":SENS1:SWE:POIN 501")
@@ -106,22 +109,17 @@ class VNA_Plugin(ProbePlugin):
             print(f"Error, Opc returned unexpected value while waiting for a single sweep to finish (expected '1', received {opc_done}); ending code execution.")
             self.vna.close()
 
-
-        print("Frequency list")
         self.frequency_data_query = self.vna.query(":SENS1:FREQ:DATA?")
-        print(self.frequency_data_query)
-        
+    
         #2d array
-        self.s_param_interest_data_query=[]
+        # self.s_param_interest_data_query=[]
 
-        for j in range(1,len(self.selected_params)+1):
+        # for j in range(1,len(self.selected_params)+1):
 
-            query_list = self.vna.query(f":CALC1:PAR{j}:DATA:SDAT?")
+        #     query_list = self.vna.query(f":CALC1:PAR{j}:DATA:SDAT?")
 
-            self.s_param_interest_data_query.append(query_list)
+        #     self.s_param_interest_data_query.append(query_list)
             
-            print(f"\n Printing s param data query \n {self.selected_params[j-1]} ")
-            print(self.s_param_interest_data_query[j-1])
 
     def disconnect(self):
         if self.vna:
@@ -153,8 +151,9 @@ class VNA_Plugin(ProbePlugin):
         self.vna.query("*OPC?")
 
 
-    def scan_trigger_and_wait(self, scan_index, scan_location):
-        pass
+    def scan_trigger_and_wait(self, scan_index=None, scan_location=None):
+        #currently using for hdf5 testing
+        self.scan_read_measurement_hdf5()
 
     def scan_end(self):
         pass
@@ -173,3 +172,61 @@ class VNA_Plugin(ProbePlugin):
             results[name] = [complex(vals[i], vals[i+1])
                             for i in range(0, len(vals), 2)]
         return results
+    
+    def scan_read_measurement_hdf5(self, scan_index=None, scan_location=None, hdf5_filename="scan_data.h5"):
+        
+        results = {}
+
+        for idx, name in enumerate(self.get_channel_names(), start=1):
+            raw = self.vna.query(f":CALC1:PAR{idx}:DATA:SDAT?")
+            tokens = self._strip_block(raw)
+            vals = list(map(float, tokens))
+            complex_data = [complex(vals[i], vals[i+1]) for i in range(0, len(vals), 2)]
+            results[name] = np.array(complex_data) 
+
+        
+        try:
+            freqs = np.array(self.get_xaxis_coords())
+        except Exception as e:
+            print(f"Error getting frequencies: {e}")
+            return
+
+        
+        data_to_save = {}
+        data_to_save["frequencies"] = freqs
+
+        for name, complex_array in results.items():
+            data_to_save[f"{name}_real"] = complex_array.real
+            data_to_save[f"{name}_imag"] = complex_array.imag
+
+      
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        group_name = f"scan_{timestamp}"
+        if scan_index is not None:
+            group_name = f"scan_index_{scan_index}_{timestamp}"
+        elif scan_location is not None:
+            
+            location_str = "_".join(map(str, scan_location))
+            group_name = f"scan_location_{location_str}_{timestamp}"
+
+
+        try:
+          
+            file_exists = os.path.exists(hdf5_filename)
+
+            with h5py.File(hdf5_filename, 'a') as f: 
+                scan_group = f.create_group(group_name)
+
+                for key, value in data_to_save.items():
+                    scan_group.create_dataset(key, data=value)
+
+              
+                if scan_index is not None:
+                    scan_group.attrs['scan_index'] = scan_index
+                if scan_location is not None:
+                    scan_group.attrs['scan_location'] = str(scan_location) 
+
+                print(f"Successfully saved data to HDF5 file: {hdf5_filename}, group: {group_name}")
+
+        except Exception as e:
+            print(f"Error saving to HDF5: {e}")
