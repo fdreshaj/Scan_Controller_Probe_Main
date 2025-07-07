@@ -14,14 +14,14 @@ import gui.select_plot_style as select_plot_style
 import gui.select_plot_hide as select_plot_hide
 import raster_pattern_generator as scan_pattern_gen
 import numpy as np
-
-
-
 import matplotlib
 matplotlib.use('QtAgg') 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas 
 from matplotlib.figure import Figure
 from  gui.plotter import plotter_system
+from scanner.scan_pattern_1 import ScanPattern
+from scanner.scan_pattern_controller import ScanPatternControllerPlugin
+
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         self.scanner = ScannerQt()
         self.plotter = plotter_system()
         self.back_btn_check = False
+        self.scan_controller = ScanPattern()
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -133,31 +134,35 @@ class MainWindow(QMainWindow):
         self.scanner.scanner.probe_controller.disconnect()
         self.configure_probe(True)
         self.connect = False
+    
+    # def connect_pat(self):
+        
 
     @Slot(bool)
     def configure_pattern(self, was_selected: bool) -> None:
-        if was_selected:
-            for i in reversed(range(self.ui.config_layout.rowCount())):
-                self.ui.config_layout.removeRow(i)
+        if was_selected:               
+            
+            connected = self.scan_controller.is_connected()
+            self.set_configuration_setting_pattern(connected)
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
         
-        raster_btn = QPushButton("Raster Pattern")
-        raster_btn.clicked.connect(self.raster_patt)
-        self.ui.config_layout.addRow(raster_btn)
+        # raster_btn = QPushButton("Raster Pattern")
+        # raster_btn.clicked.connect(self.raster_patt)
+        # self.ui.config_layout.addRow(raster_btn)
         
-        hilbert_btn = QPushButton("Hilbert Curve Pattern")
-        hilbert_btn.clicked.connect(self.hilbert_patt)
-        self.ui.config_layout.addRow(hilbert_btn)
+        # hilbert_btn = QPushButton("Hilbert Curve Pattern")
+        # hilbert_btn.clicked.connect(self.hilbert_patt)
+        # self.ui.config_layout.addRow(hilbert_btn)
         
-        rot_btn = QPushButton("Rotate Pattern")
-        rot_btn.clicked.connect(self.rotate_patt)
-        self.ui.config_layout.addRow(rot_btn)
+        # rot_btn = QPushButton("Rotate Pattern")
+        # rot_btn.clicked.connect(self.rotate_patt)
+        # self.ui.config_layout.addRow(rot_btn)
         
-        shear_btn = QPushButton("Shear Pattern")
-        shear_btn.clicked.connect(self.shear_patt)
-        self.ui.config_layout.addRow(shear_btn)
+        # shear_btn = QPushButton("Shear Pattern")
+        # shear_btn.clicked.connect(self.shear_patt)
+        # self.ui.config_layout.addRow(shear_btn)
         
         
 
@@ -470,6 +475,43 @@ class MainWindow(QMainWindow):
                     back_btn.clicked.connect(self.back_function)
                     self.ui.config_layout.addRow(back_btn)
                     
+                    
+    def set_configuration_setting_pattern(self,connected) -> None:
+        
+        print(f"Connected Status GUI: {connected}")
+        if connected == True:
+            for i in reversed(range(self.ui.config_layout.rowCount())):
+                    self.ui.config_layout.removeRow(i)
+            for setting in self.scan_controller.settings_pre_connect:
+                    plug = QPluginSetting(setting)
+                    plug.setDisabled(True)
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                
+            for setting in self.scan_controller.settings_post_connect:
+                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            disconnect_button = QPushButton("Back")
+            disconnect_button.clicked.connect(self.disconnect_pat)
+            self.ui.config_layout.addRow(disconnect_button)
+        
+        else:   
+            for i in reversed(range(self.ui.config_layout.rowCount())):
+                    self.ui.config_layout.removeRow(i)
+            for setting in self.scan_controller.settings_pre_connect:
+                        self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            connect_button = QPushButton("Generate")
+            connect_button.clicked.connect(self.connect_pat)
+            self.ui.config_layout.addRow(connect_button)
+    
+    @Slot()
+    def connect_pat(self):
+        
+        self.scan_controller.connect()
+        self.configure_pattern(True)
+    @Slot()
+    def disconnect_pat(self):
+        self.scan_controller.disconnect()
+        self.configure_pattern(True)
+    
     def setup_plotting_canvas(self) -> None:
         main_layout = self.ui.main_layout 
        

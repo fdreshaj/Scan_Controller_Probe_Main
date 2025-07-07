@@ -169,6 +169,7 @@ class Scanner():
     def probe_controller(self) -> ProbeController:
         return self._probe_controller
 
+    
 
     
 
