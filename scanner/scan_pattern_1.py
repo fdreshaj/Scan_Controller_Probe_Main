@@ -53,13 +53,13 @@ class ScanPattern(ScanPatternControllerPlugin):
         #check divisibility 
         if self.points.is_integer():  
             self.points = int(self.points)
-            matrix = self.create_pattern_matrix(self.points)
-            print(matrix)
+            self.matrix = self.create_pattern_matrix(self.points)
+            print(self.matrix)
             if self.pattern_style == "XY" :
-                temp_row = matrix[0].copy()
-                matrix[0] = matrix[1]
-                matrix[1] = temp_row
-                print(f"Swapped Matrix: {matrix}")
+                temp_row = self.matrix[0].copy()
+                self.matrix[0] = self.matrix[1]
+                self.matrix[1] = temp_row
+                print(f"Swapped Matrix: {self.matrix}")
                 
             
             self.time_est = self.time_estimate(self.points,self.float_step_size)

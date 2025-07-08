@@ -1,4 +1,5 @@
 
+from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
@@ -21,7 +22,7 @@ from matplotlib.figure import Figure
 from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
-
+from scanner.scan_file_1 import ScanFile
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
@@ -40,6 +41,7 @@ class MainWindow(QMainWindow):
         self.plotter = plotter_system()
         self.back_btn_check = False
         self.scan_controller = ScanPattern()
+        self.file_controller = ScanFile()
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -147,33 +149,75 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-        
-        # raster_btn = QPushButton("Raster Pattern")
-        # raster_btn.clicked.connect(self.raster_patt)
-        # self.ui.config_layout.addRow(raster_btn)
-        
-        # hilbert_btn = QPushButton("Hilbert Curve Pattern")
-        # hilbert_btn.clicked.connect(self.hilbert_patt)
-        # self.ui.config_layout.addRow(hilbert_btn)
-        
-        # rot_btn = QPushButton("Rotate Pattern")
-        # rot_btn.clicked.connect(self.rotate_patt)
-        # self.ui.config_layout.addRow(rot_btn)
-        
-        # shear_btn = QPushButton("Shear Pattern")
-        # shear_btn.clicked.connect(self.shear_patt)
-        # self.ui.config_layout.addRow(shear_btn)
+
         
         
 
     @Slot(bool)
     def configure_file(self, was_selected: bool) -> None:
         if was_selected:
-            for i in reversed(range(self.ui.config_layout.rowCount())):
-                self.ui.config_layout.removeRow(i)
+            connected = self.file_controller.is_connected()
+            self.set_configuration_setting_file(connected)
+                
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
+                
+    def set_configuration_setting_file(self,connected):
+        print(f"Connected Status GUI: {connected}")
+        if connected == True:
+            for i in reversed(range(self.ui.config_layout.rowCount())):
+                    self.ui.config_layout.removeRow(i)
+            for setting in self.file_controller.settings_pre_connect:
+                    plug = QPluginSetting(setting)
+                    plug.setDisabled(True)
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                
+            for setting in self.file_controller.settings_post_connect:
+                    
+                    PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
+                    plug = QPluginSetting(setting)
+                    
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                    
+            go_back_file = QPushButton("Back")
+            go_back_file.clicked.connect(self.go_back_file)
+            self.ui.config_layout.addRow(go_back_file)  
+        
+        else:   
+            for i in reversed(range(self.ui.config_layout.rowCount())):
+                    self.ui.config_layout.removeRow(i)
+            for setting in self.file_controller.settings_pre_connect:
+                        self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            get_file_dir = QPushButton("Choose File Directory")
+            get_file_dir.clicked.connect(self.get_file_dir)
+            self.ui.config_layout.addRow(get_file_dir)            
+                        
+            finish_config = QPushButton("Finish Config")
+            finish_config.clicked.connect(self.finish_config)
+            self.ui.config_layout.addRow(finish_config)
+                    
+                    
+    
+                    
+    @Slot()
+    def go_back_file(self):
+
+        self.file_controller.disconnect()
+        self.configure_file(True)
+        
+    def get_file_dir(self):
+
+        self.file_directory = fd.askdirectory()
+        print(f"Selected directory: {self.file_directory}")
+        
+        
+    def finish_config(self):
+        #connect button for scan file config
+        self.file_controller.connect()
+        self.configure_file(True)
+    
+    
     ## Fix after 
     def plot_btn(self):
         for i in reversed(range(self.ui.plot_config_wid.rowCount())):
@@ -213,9 +257,11 @@ class MainWindow(QMainWindow):
         
         
     def test_scan_bt(self):
-        
+        self.step_size = self.scan_controller.step_size
+        self.length = self.scan_controller.y_axis_len
+        matrix = self.scan_controller.matrix 
         self.negative_step_size = np.negative(self.step_size)
-        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(self.movement_mat,self.length,self.step_size,self.negative_step_size))
+        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
         self.scan_thread.start()
         
             
@@ -262,90 +308,7 @@ class MainWindow(QMainWindow):
         else: 
             pass 
                 
-    def raster_patt(self):
-        # mid scan frequency ? 
-        # scan box side length in mm 
-        root = tk.Tk()
-        root.withdraw()  
 
-    
-        self.length = simpledialog.askfloat("Scan Length", "Enter scan length in mm:", minvalue=1.0)
-        if self.length is None:
-            print("Operation cancelled.")
-            return
-
-     
-        self.step_size = simpledialog.askfloat("Step Size ", "Enter step size in mm: ")
-        if self.step_size is None:
-            print("Operation cancelled.")
-            return
-        
-    
-        
-        self.points = int(self.length/self.step_size)
-        
-        estimated_time_hours = scan_pattern_gen.time_approx(self.points, mat_type="Raster")
-
-     
-        messagebox.showinfo("Estimated Scan Time", 
-                            f"The scan will generate approximately {self.points**2} points.\n"
-                            f"Estimated time for the scan: {estimated_time_hours:.2f} hours.")
-
-     
-        
-        
-        root.destroy()
-        
-        self.movement_mat = scan_pattern_gen.create_pattern_matrix(self.points)
-        
-        
-        scan_pattern_gen.plot(self.movement_mat,self.points)
-        
-
-    def hilbert_patt(self):
-        # mid scan frequency ? 
-        # scan box side length in mm 
-        
-        self.hilbert_mat = scan_pattern_gen.hilbert_curve(4)
-        
-        scan_pattern_gen.plot(self.hilbert_mat,4)
-        
-
-    def rotate_patt(self):
-        root = tk.Tk()
-        root.withdraw()  
-        deg_input = simpledialog.askfloat("Degree Rotation CC", "Enter in deg (Counter Clockwise rotation):", minvalue=1.0)
-        if deg_input is None:
-            print("Operation cancelled.")
-            return
-        root.destroy()
-        self.rot_mat= self.movement_mat
-        self.rot_mat = scan_pattern_gen.rotate_points(self.rot_mat,np.deg2rad(deg_input))
-        
-        scan_pattern_gen.plot(self.rot_mat,self.points)
-        self.movement_mat = self.rot_mat
-        
-    def shear_patt(self):
-        root = tk.Tk()
-        root.withdraw()  
-
-       
-        shear_input_x = simpledialog.askfloat("Shear X", "Enter X Shear", minvalue=0)
-        if shear_input_x is None:
-            print("Operation cancelled.")
-            return
-        shear_input_y = simpledialog.askfloat("Shear Y", "Enter Y Shear", minvalue=0)
-        if shear_input_x is None:
-            print("Operation cancelled.")
-            return
-        
-        root.destroy()
-        self.shear_mat= self.movement_mat
-        self.shear_mat = scan_pattern_gen.apply_shear(self.shear_mat,shear_input_x,shear_input_y)
-        
-        scan_pattern_gen.plot(self.shear_mat,self.points)
-        self.movement_mat = self.shear_mat        
-    
 
     # TODO:
     def back_function_motion(self):
