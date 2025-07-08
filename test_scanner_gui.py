@@ -1,4 +1,6 @@
 
+## IMPORTS 
+#region Imports
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
@@ -23,16 +25,16 @@ from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
+#endregion
 
 class MainWindow(QMainWindow):
     scanner: ScannerQt
     ui: Ui_MainWindow
     pluginChosen_probe = False
-    
     pluginChosen_motion = False
     
-    
-    
+    ## SETUP FUNCTIONS
+    #region SETUP
     def __init__(self) -> None:
         super().__init__()
         self.ui = Ui_MainWindow()
@@ -81,7 +83,12 @@ class MainWindow(QMainWindow):
         self.display_timer.setInterval(1000 // 60)
        # self.display_timer.timeout.connect(self.scanner.update_motion) TODO:
         self.display_timer.start()
+    #endregion
     
+    
+    
+    ## CONFIG M/P/SP/SF 
+    #region CONFIGURE FUNCTIONS
     @Slot(bool)
     def configure_pressed(self, was_selected: bool) -> None:
         self.sender().blockSignals(True)
@@ -102,17 +109,7 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-            
-    @Slot()
-    def connect_motion(self):
-        self.scanner.scanner.motion_controller.connect()
-        self.configure_motion(True)
-
-    @Slot()
-    def disconnect_motion(self):
-        self.scanner.scanner.motion_controller.disconnect()
-        self.configure_motion(True)
-
+    
     @Slot(bool)
     def configure_probe(self, was_selected: bool) -> None:
         if was_selected:
@@ -124,22 +121,7 @@ class MainWindow(QMainWindow):
 
 
         self.back_btn_check = False
-          
-            
-    @Slot()
-    def connect_probe(self):
-        self.scanner.scanner.probe_controller.connect()
-        self.configure_probe(True)
-
-    @Slot()
-    def disconnect_probe(self):
-        self.scanner.scanner.probe_controller.disconnect()
-        self.configure_probe(True)
-        self.connect = False
     
-    # def connect_pat(self):
-        
-
     @Slot(bool)
     def configure_pattern(self, was_selected: bool) -> None:
         if was_selected:               
@@ -162,7 +144,69 @@ class MainWindow(QMainWindow):
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
-                
+    
+    #endregion
+    
+    
+    
+    ## CONNECT DISCONNECT M/P/SP/SF
+    #region c/dc functions
+    @Slot()
+    def connect_motion(self):
+        self.scanner.scanner.motion_controller.connect()
+        self.configure_motion(True)
+
+    @Slot()
+    def disconnect_motion(self):
+        self.scanner.scanner.motion_controller.disconnect()
+        self.configure_motion(True)
+            
+    @Slot()
+    def connect_probe(self):
+        self.scanner.scanner.probe_controller.connect()
+        self.configure_probe(True)
+
+    @Slot()
+    def disconnect_probe(self):
+        self.scanner.scanner.probe_controller.disconnect()
+        self.configure_probe(True)
+        self.connect = False
+        
+    @Slot()
+    def finish_config(self):
+        #connect button for scan file config
+        self.file_controller.connect()
+        self.configure_file(True)
+        
+    @Slot()
+    def go_back_file(self):
+
+        self.file_controller.disconnect()
+        self.configure_file(True)
+        
+    @Slot()
+    def connect_pat(self):
+        
+        self.scan_controller.connect()
+        self.configure_pattern(True)
+    @Slot()
+    def disconnect_pat(self):
+        self.scan_controller.disconnect()
+        self.configure_pattern(True)    
+        
+    #endregion
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    ## CONFIG SETTINGS M/P/SP/SF
+    #region config settings
     def set_configuration_setting_file(self,connected):
         print(f"Connected Status GUI: {connected}")
         if connected == True:
@@ -197,125 +241,6 @@ class MainWindow(QMainWindow):
             finish_config.clicked.connect(self.finish_config)
             self.ui.config_layout.addRow(finish_config)
                     
-                    
-    
-                    
-    @Slot()
-    def go_back_file(self):
-
-        self.file_controller.disconnect()
-        self.configure_file(True)
-        
-    def get_file_dir(self):
-
-        self.file_directory = fd.askdirectory()
-        print(f"Selected directory: {self.file_directory}")
-        
-        
-    def finish_config(self):
-        #connect button for scan file config
-        self.file_controller.connect()
-        self.configure_file(True)
-    
-    
-    ## Fix after 
-    def plot_btn(self):
-        for i in reversed(range(self.ui.plot_config_wid.rowCount())):
-            self.ui.plot_config_wid.removeRow(i)
-            
-        self.freqs, self.s_param_names,self.all_s_params_data = self.plotter._get_and_process_data("Log Mag")
-        self.plot_style = "Log Mag"
-        self.processed_data = self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
-        self.plot_settings()
-
-    def scan_testing(self):
-        test_scan = QPushButton("Test Scan")
-        test_scan.clicked.connect(self.test_scan_bt)
-        self.ui.config_layout.addRow(test_scan)
-        
-    def plot_settings(self):
-        
-        display_Pop_up = QPushButton("Display Pop Up")
-        display_Pop_up.clicked.connect(self.display_Pop_up)
-        self.ui.plot_config_wid.addRow(display_Pop_up)  
-        
-        plot_style = QPushButton("Select Plot Style (Mag dB default)")
-        plot_style.clicked.connect(self.plot_style_btn)
-        self.ui.plot_config_wid.addRow(plot_style)       
-        
-        sel_hide_channel = QPushButton("Select/Hide S-Parameters")
-        sel_hide_channel.clicked.connect(self.sel_hide_channel)
-        self.ui.plot_config_wid.addRow(sel_hide_channel)
-        
-        dsp_settings = QPushButton("DSP Settings")
-        dsp_settings.clicked.connect(self.dsp_settings)
-        self.ui.plot_config_wid.addRow(dsp_settings)      
-        
-        plot_plugins = QPushButton("Import Plot Plugins")
-        plot_plugins.clicked.connect(self.plot_plugins)
-        self.ui.plot_config_wid.addRow(plot_plugins)  
-        
-        
-    def test_scan_bt(self):
-        self.step_size = self.scan_controller.step_size
-        self.length = self.scan_controller.y_axis_len
-        matrix = self.scan_controller.matrix 
-        self.negative_step_size = np.negative(self.step_size)
-        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
-        self.scan_thread.start()
-        
-            
-    def display_Pop_up(self):
-        self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
-        
-        
-    def plot_style_btn(self):
-        #Pop up Tkinter asking what style of plot you want
-        self.plot_style = select_plot_style.select_plot_style()
-        self.processed_data=self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
-    
-    def sel_hide_channel(self):
-        selected_hidden = select_plot_hide.select_plot_hide(4)
-        self.plotter.set_trace_visibility(selected_hidden)
-    
-    
-    def dsp_settings(self):
-        self.invfft = self.plotter.invFFT_plot(self.s_param_names,self.processed_data,)
-        
-    
-    def plot_plugins(self):
-        self.scanner.scanner._probe_controller.scan_trigger_and_wait()
-    
-    def save_btn(self):
-        self.plotter.save()
-        
-    
-
-    def back_function(self):
-
-        response = messagebox.askyesno(
-            "Reset Instrument Connection",
-            "Are you sure you want to reset the instrument connection?"
-        )
-
-        if response:  
-            from scanner.scanner import Scanner
-            self.scanner.scanner = Scanner(probe_controller="Back")
-
-            self.configure_probe(True)
-            #self.connected = False
-            self.pluginChosen_probe = False
-        else: 
-            pass 
-                
-
-
-    # TODO:
-    def back_function_motion(self):
-
-        pass
-        
-        
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
         for i in reversed(range(self.ui.config_layout.rowCount())):
@@ -463,17 +388,117 @@ class MainWindow(QMainWindow):
                         self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
             connect_button = QPushButton("Generate")
             connect_button.clicked.connect(self.connect_pat)
-            self.ui.config_layout.addRow(connect_button)
+            self.ui.config_layout.addRow(connect_button)                
+    #endregion
     
-    @Slot()
-    def connect_pat(self):
+                    
+    ## Helper Functions and Buttons
+    #region  helper func  
+    def get_file_dir(self):
+
+        self.file_directory = fd.askdirectory()
+        print(f"Selected directory: {self.file_directory}")
         
-        self.scan_controller.connect()
-        self.configure_pattern(True)
-    @Slot()
-    def disconnect_pat(self):
-        self.scan_controller.disconnect()
-        self.configure_pattern(True)
+    
+    ## Fix after 
+    def plot_btn(self):
+        for i in reversed(range(self.ui.plot_config_wid.rowCount())):
+            self.ui.plot_config_wid.removeRow(i)
+            
+        self.freqs, self.s_param_names,self.all_s_params_data = self.plotter._get_and_process_data("Log Mag")
+        self.plot_style = "Log Mag"
+        self.processed_data = self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
+        self.plot_settings()
+
+    def scan_testing(self):
+        test_scan = QPushButton("Test Scan")
+        test_scan.clicked.connect(self.test_scan_bt)
+        self.ui.config_layout.addRow(test_scan)
+        
+    def plot_settings(self):
+        
+        display_Pop_up = QPushButton("Display Pop Up")
+        display_Pop_up.clicked.connect(self.display_Pop_up)
+        self.ui.plot_config_wid.addRow(display_Pop_up)  
+        
+        plot_style = QPushButton("Select Plot Style (Mag dB default)")
+        plot_style.clicked.connect(self.plot_style_btn)
+        self.ui.plot_config_wid.addRow(plot_style)       
+        
+        sel_hide_channel = QPushButton("Select/Hide S-Parameters")
+        sel_hide_channel.clicked.connect(self.sel_hide_channel)
+        self.ui.plot_config_wid.addRow(sel_hide_channel)
+        
+        dsp_settings = QPushButton("DSP Settings")
+        dsp_settings.clicked.connect(self.dsp_settings)
+        self.ui.plot_config_wid.addRow(dsp_settings)      
+        
+        plot_plugins = QPushButton("Import Plot Plugins")
+        plot_plugins.clicked.connect(self.plot_plugins)
+        self.ui.plot_config_wid.addRow(plot_plugins)  
+        
+        
+    def test_scan_bt(self):
+        self.step_size = self.scan_controller.step_size
+        self.length = self.scan_controller.y_axis_len
+        matrix = self.scan_controller.matrix 
+        self.negative_step_size = np.negative(self.step_size)
+        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
+        self.scan_thread.start()
+        
+            
+    def display_Pop_up(self):
+        self.plotter.plot_in_popup(self.plot_style,self.freqs, self.s_param_names,self.processed_data)
+        
+        
+    def plot_style_btn(self):
+        #Pop up Tkinter asking what style of plot you want
+        self.plot_style = select_plot_style.select_plot_style()
+        self.processed_data=self.plotter.plot_initial_data(self.plot_style,self.freqs, self.s_param_names,self.all_s_params_data)
+    
+    def sel_hide_channel(self):
+        selected_hidden = select_plot_hide.select_plot_hide(4)
+        self.plotter.set_trace_visibility(selected_hidden)
+    
+    
+    def dsp_settings(self):
+        self.invfft = self.plotter.invFFT_plot(self.s_param_names,self.processed_data,)
+        
+    
+    def plot_plugins(self):
+        self.scanner.scanner._probe_controller.scan_trigger_and_wait()
+    
+    def save_btn(self):
+        self.plotter.save()
+        
+    
+
+    def back_function(self):
+
+        response = messagebox.askyesno(
+            "Reset Instrument Connection",
+            "Are you sure you want to reset the instrument connection?"
+        )
+
+        if response:  
+            from scanner.scanner import Scanner
+            self.scanner.scanner = Scanner(probe_controller="Back")
+
+            self.configure_probe(True)
+            #self.connected = False
+            self.pluginChosen_probe = False
+        else: 
+            pass 
+                
+
+
+    # TODO:
+    def back_function_motion(self):
+
+        pass
+        
+       
+    
     
     def setup_plotting_canvas(self) -> None:
         main_layout = self.ui.main_layout 
@@ -483,6 +508,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)
+    #endregion 
 
 if __name__ == "__main__":
     app = QApplication([])
