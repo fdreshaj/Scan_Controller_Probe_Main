@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
     pluginChosen_motion = False
     
     ## SETUP FUNCTIONS
-    #region SETUP
+    #region Setup
     def __init__(self) -> None:
         super().__init__()
         self.ui = Ui_MainWindow()
@@ -88,7 +88,7 @@ class MainWindow(QMainWindow):
     
     
     ## CONFIG M/P/SP/SF 
-    #region CONFIGURE FUNCTIONS
+    #region config functions
     @Slot(bool)
     def configure_pressed(self, was_selected: bool) -> None:
         self.sender().blockSignals(True)
@@ -146,62 +146,6 @@ class MainWindow(QMainWindow):
                 self.ui.config_layout.removeRow(i)
     
     #endregion
-    
-    
-    
-    ## CONNECT DISCONNECT M/P/SP/SF
-    #region c/dc functions
-    @Slot()
-    def connect_motion(self):
-        self.scanner.scanner.motion_controller.connect()
-        self.configure_motion(True)
-
-    @Slot()
-    def disconnect_motion(self):
-        self.scanner.scanner.motion_controller.disconnect()
-        self.configure_motion(True)
-            
-    @Slot()
-    def connect_probe(self):
-        self.scanner.scanner.probe_controller.connect()
-        self.configure_probe(True)
-
-    @Slot()
-    def disconnect_probe(self):
-        self.scanner.scanner.probe_controller.disconnect()
-        self.configure_probe(True)
-        self.connect = False
-        
-    @Slot()
-    def finish_config(self):
-        #connect button for scan file config
-        self.file_controller.connect()
-        self.configure_file(True)
-        
-    @Slot()
-    def go_back_file(self):
-
-        self.file_controller.disconnect()
-        self.configure_file(True)
-        
-    @Slot()
-    def connect_pat(self):
-        
-        self.scan_controller.connect()
-        self.configure_pattern(True)
-    @Slot()
-    def disconnect_pat(self):
-        self.scan_controller.disconnect()
-        self.configure_pattern(True)    
-        
-    #endregion
-    
-    
-    
-    
-    
-    
-    
     
     
     
@@ -391,9 +335,64 @@ class MainWindow(QMainWindow):
             self.ui.config_layout.addRow(connect_button)                
     #endregion
     
+    
+    
+    
+    
+    
+    ## CONNECT DISCONNECT M/P/SP/SF
+    #region c/dc functions
+    @Slot()
+    def connect_motion(self):
+        self.scanner.scanner.motion_controller.connect()
+        self.configure_motion(True)
+
+    @Slot()
+    def disconnect_motion(self):
+        self.scanner.scanner.motion_controller.disconnect()
+        self.configure_motion(True)
+            
+    @Slot()
+    def connect_probe(self):
+        self.scanner.scanner.probe_controller.connect()
+        self.configure_probe(True)
+
+    @Slot()
+    def disconnect_probe(self):
+        self.scanner.scanner.probe_controller.disconnect()
+        self.configure_probe(True)
+        self.connect = False
+        
+    @Slot()
+    def finish_config(self):
+        #connect button for scan file config
+        self.file_controller.connect()
+        self.configure_file(True)
+        
+    @Slot()
+    def go_back_file(self):
+
+        self.file_controller.disconnect()
+        self.configure_file(True)
+        
+    @Slot()
+    def connect_pat(self):
+        
+        self.scan_controller.connect()
+        self.configure_pattern(True)
+    @Slot()
+    def disconnect_pat(self):
+        self.scan_controller.disconnect()
+        self.configure_pattern(True)    
+        
+    #endregion
+    
+    
+    
+    
                     
     ## Helper Functions and Buttons
-    #region  helper func  
+    #region  helper functions   
     def get_file_dir(self):
 
         self.file_directory = fd.askdirectory()
@@ -437,7 +436,7 @@ class MainWindow(QMainWindow):
         plot_plugins.clicked.connect(self.plot_plugins)
         self.ui.plot_config_wid.addRow(plot_plugins)  
         
-        
+    #region scan button func    
     def test_scan_bt(self):
         self.step_size = self.scan_controller.step_size
         self.length = self.scan_controller.y_axis_len

@@ -59,3 +59,4 @@ class ScanFile(ScanFileControllerPlugin):
     def is_connected(self) -> bool:
         print(f"Connected Status Backend _is_connected: {self._is_connected}")
         return self._is_connected
+    
