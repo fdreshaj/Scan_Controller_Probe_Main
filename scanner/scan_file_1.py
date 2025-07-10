@@ -60,3 +60,8 @@ class ScanFile(ScanFileControllerPlugin):
         print(f"Connected Status Backend _is_connected: {self._is_connected}")
         return self._is_connected
     
+    def csv(self):
+        pass
+
+    def hdf5(self): 
+        pass

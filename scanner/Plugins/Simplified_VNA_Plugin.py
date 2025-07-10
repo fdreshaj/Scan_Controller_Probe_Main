@@ -23,7 +23,8 @@ class VNA_Plugin(ProbePlugin):
         self.frequency_data_query = []
         self.s_param_interest_data_query = []
         
-        self.address = PluginSettingString("Resource Address", "TCPIP0::169.254.250.89::inst0::INSTR")
+        #self.address = PluginSettingString("Resource Address", "TCPIP0::169.254.250.89::inst0::INSTR") Testing, this should be default for this VNA
+        self.address = PluginSettingString("Resource Address", "TCPIP0::10.48.71.84::5001::SOCKET")
         self.timeout = PluginSettingInteger("Timeout (ms)", 20000)
 
         
@@ -38,8 +39,13 @@ class VNA_Plugin(ProbePlugin):
         
         self.freq_stop = PluginSettingFloat("Stop Freq (Hz)", 4e9)
 
-        self.if_bandwidth = PluginSettingFloat("IF Bandwidth (Hz)", 10000)        
+        self.if_bandwidth = PluginSettingFloat("IF Bandwidth (Hz)", 10000)   
+        self.vna_type = PluginSettingString(
+            "Choose VNA", "MS46524B",
+            select_options=["MS46524B", "MS46131A"], restrict_selections=True
+        )
 
+        self.add_setting_pre_connect(self.vna_type)
         self.add_setting_pre_connect(self.address)
         
         self.add_setting_pre_connect(self.timeout)
@@ -54,9 +60,13 @@ class VNA_Plugin(ProbePlugin):
 
 
     def connect(self):
-        
+        vna_pick = PluginSettingString.get_value_as_string(self.vna_type)
+        # after i wrote this i remembered that this if statement is unecessary since the instantiated class handles it anyways 
+        # but i will remove unecesary code later on 
         self.vna=InstrumentConnection(self.address.value, self.timeout.value).connect()
         
+        
+            
         if self.freq_mode.value == "Query":
 
             start_Frequency = self.vna.query(":SENS1:FREQ:STAR?")
@@ -85,8 +95,11 @@ class VNA_Plugin(ProbePlugin):
         else:
             print("__Incorrect Input on frequency mode setting__")
 
-
-        self.selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
+        if vna_pick == "MS46524B":
+           self.selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(4)
+        elif vna_pick == "MS46131A":
+             self.selected_params = VNA_List_Sparams.s_parameter_selection_VNA_n_channels(1)
+        
        
         self.vna.write(f":CALC1:PAR:COUN {len(self.selected_params)}")
 
@@ -94,7 +107,7 @@ class VNA_Plugin(ProbePlugin):
             
             self.vna.write(f"CALC1:PAR{i}:DEF {self.selected_params[i-1]}")
             self.vna.write(f":CALC1:PAR{i}:FORM: REIM")
-             
+            
 
         # maybe make user changable TODO:
         self.vna.write(":SENS1:SWE:POIN 501")

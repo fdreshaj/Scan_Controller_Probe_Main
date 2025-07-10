@@ -175,3 +175,20 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+vna_data.txt
+.vs/ProjectSettings.json
+.vs/slnx.sqlite
+.vs/PythonSettings.json
+.vs/VSWorkspaceState.json
+.vs/scan-controller-main/CopilotIndices/17.14.827.52834/CodeChunks.db
+.vs/scan-controller-main/CopilotIndices/17.14.827.52834/SemanticSymbols.db
+outfile2.parq/_metadata
+outfile2.parq/part.0.parquet
+outfile2.parq/part.1.parquet
+outfile2.parq/_common_metadata
+.vs/scan-controller-main/v17/DocumentLayout.json
+.vs/scan-controller-main/v17/DocumentLayout.backup.json
+.vs/scan-controller-main/v17/.wsuo
+.vs/scan-controller-main/FileContentIndex/d402d807-243c-440d-b3e7-afc9e4421bb8.vsidx
+.vs/scan-controller-main/FileContentIndex/c66b9f9f-de4e-4ad9-84c6-403bc66bd531.vsidx
+.vs/scan-controller-main/FileContentIndex/56f1982f-816a-4201-8488-81822e684f08.vsidx

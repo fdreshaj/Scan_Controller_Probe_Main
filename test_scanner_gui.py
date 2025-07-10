@@ -25,6 +25,7 @@ from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
+
 #endregion
 
 class MainWindow(QMainWindow):
@@ -324,7 +325,12 @@ class MainWindow(QMainWindow):
             disconnect_button = QPushButton("Back")
             disconnect_button.clicked.connect(self.disconnect_pat)
             self.ui.config_layout.addRow(disconnect_button)
-        
+
+            ### TESTING
+            self.step_size = self.scan_controller.float_step_size
+            self.length = self.scan_controller.y_axis_len
+            matrix = self.scan_controller.matrix 
+            ### TESTING
         else:   
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
@@ -356,6 +362,7 @@ class MainWindow(QMainWindow):
     def connect_probe(self):
         self.scanner.scanner.probe_controller.connect()
         self.configure_probe(True)
+
 
     @Slot()
     def disconnect_probe(self):
@@ -438,9 +445,10 @@ class MainWindow(QMainWindow):
         
     #region scan button func    
     def test_scan_bt(self):
-        self.step_size = self.scan_controller.step_size
+        self.step_size = self.scan_controller.float_step_size
         self.length = self.scan_controller.y_axis_len
         matrix = self.scan_controller.matrix 
+
         self.negative_step_size = np.negative(self.step_size)
         self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
         self.scan_thread.start()
