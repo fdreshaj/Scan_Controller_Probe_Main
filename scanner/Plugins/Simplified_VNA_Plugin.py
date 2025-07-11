@@ -24,7 +24,7 @@ class VNA_Plugin(ProbePlugin):
         self.s_param_interest_data_query = []
         
         #self.address = PluginSettingString("Resource Address", "TCPIP0::169.254.250.89::inst0::INSTR") Testing, this should be default for this VNA
-        self.address = PluginSettingString("Resource Address", "TCPIP0::10.48.71.84::5001::SOCKET")
+        self.address = PluginSettingString("Resource Address", "TCPIP0::10.48.70.86::5001::SOCKET")
         self.timeout = PluginSettingInteger("Timeout (ms)", 20000)
 
         
@@ -110,7 +110,7 @@ class VNA_Plugin(ProbePlugin):
             
 
         # maybe make user changable TODO:
-        self.vna.write(":SENS1:SWE:POIN 501")
+        #self.vna.write(":SENS1:SWE:POIN 501")
         
         
         self.vna.write(":SENS1:HOLD:FUNC HOLD")

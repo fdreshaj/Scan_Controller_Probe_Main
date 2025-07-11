@@ -5,16 +5,20 @@ from scanner.plugin_switcher import PluginSwitcher
 from scanner.plugin_switcher_motion import PluginSwitcherMotion
 import importlib
 import numpy as np
-from  gui.plotter import plotter_system
+import threading
+import datetime
+import time 
+import os
 class Scanner():
     _motion_controller: MotionController
 
     _probe_controller: ProbeController
     
-   
+    
     
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
        # self.plotter = plotter_system()
+        self.output_filepath = "vna_data3.txt"
         if PluginSwitcher.plugin_name == "":
             
             self.plugin_Probe = PluginSwitcher()
@@ -34,7 +38,7 @@ class Scanner():
     
                 
             except (ImportError, AttributeError) as e:
-                print(f"Error loading plugin {PluginSwitcher.plugin_name} from {plugin_module_name}: {e}")
+                #print(f"Error loading plugin {PluginSwitcher.plugin_name} from {plugin_module_name}: {e}")
                
                 self.plugin_Probe = PluginSwitcher()
                 
@@ -46,7 +50,7 @@ class Scanner():
         else:
             self._probe_controller = ProbeController(self.plugin_Probe)    
             
-            
+        
                 
         if PluginSwitcherMotion.plugin_name == "":
             
@@ -78,32 +82,44 @@ class Scanner():
             
     
     def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
-        x_axis_pos = 0
-        y_axis_pos = 0
-      
+        
+
         negative_thresh = -0.01
         positive_thresh = 0.01
-        step_size = step_size/2 ## For some reason the step size to mm ratio is double, need to check what is going on there but this is a quick fix for now
+        step_size = step_size/2 ## For some reason the step size to mm ratio is double, need to check what is going on there but this is a quick fix for now FIXME:
         negative_step_size = negative_step_size/2
+        self._open_output_file()
         
 
         for i in range (0,len(matrix[0])):
-            self.vna_sim()
+            
+            start=time.time()
+            all_s_params_data = self.vna_sim()
+            #print(all_s_params_data)
             
             if i == 0:
-                print("First scan in place, no movement")
-    
+                #print("First scan in place, no movement")
+                self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                self.vna_thread.start()
                 #self.plotter._get_and_process_data("Log Mag")
                 # SCAN
+                self.vna_thread.join()
+                
             elif i == len(matrix[0])-1:
                 # SCAN END
                 #self.plotter._get_and_process_data("Log Mag")
-                print("Scan END: ")
+                self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                self.vna_thread.start()
+                #self.plotter._get_and_process_data("Log Mag")
+                # SCAN
+                self.vna_thread.join()
+                #print("Scan END: ")
+                
             else:
                 
                 difference = matrix[:,i] - matrix[:,i-1]
                 #x axis
-                #self.plotter._get_and_process_data("Log Mag")
+               
                 
                 if difference[0] > positive_thresh:
                     
@@ -114,9 +130,14 @@ class Scanner():
                     
                     busy_bit = self._motion_controller.is_moving()
                     
+                
+                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                    self.vna_thread.start()
+                    
                     while busy_bit[0] != 224:
                         busy_bit = self._motion_controller.is_moving()
-                   
+                        
+                    self.vna_thread.join()
                     
                 elif difference[0] < negative_thresh:
                 
@@ -128,9 +149,18 @@ class Scanner():
                     
                     
                     busy_bit = self._motion_controller.is_moving()
+                    
+                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                    self.vna_thread.start()
+                    
                     while busy_bit[0] != 224:
                         busy_bit = self._motion_controller.is_moving()
-        
+                        
+                    self.vna_thread.join()
+                    
+                    
+                    
+                    
                 #y axis
                 if difference[1] > positive_thresh:
                    
@@ -140,8 +170,14 @@ class Scanner():
                    
                    
                    busy_bit = self._motion_controller.is_moving()
+                   self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                   self.vna_thread.start()
+                       
                    while busy_bit[1] != 225:
-                      busy_bit = self._motion_controller.is_moving()
+                       busy_bit = self._motion_controller.is_moving()
+                       
+                   self.vna_thread.join()
+                   
                    
                 elif difference[1] < negative_thresh:
                     
@@ -151,27 +187,77 @@ class Scanner():
                     
                    
                     busy_bit = self._motion_controller.is_moving()
+                    
+                    
+                        
+                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                    self.vna_thread.start()
+    
                     while busy_bit[1] != 225:
                         busy_bit = self._motion_controller.is_moving()
+                    self.vna_thread.join()
+                    
+                end = time.time()
+                print(f"Time it took for one scan movement: {end-start} \n")
+   
                         
     def vna_sim(self):
-
-        self.output_filepath = "vna_data2.txt"
         
+        start = time.time_ns()
         #freqs = np.array(self._probe_controller.get_xaxis_coords())
         all_s_params_data = self._probe_controller.scan_read_measurement(0, ())
         #s_param_names = self._probe_controller.get_channel_names()
+        end = time.time_ns()
+        
+        print(f"Time it took for vna data transfer: {end-start}")
+        
+        return all_s_params_data
+        
+    def vna_write_data(self,all_s_params_data):
+        
+        start = time.time()
+        
+                
+        for s_param_name, s_param_values in all_s_params_data.items():
+            
+            values_string = ", ".join([str(val) for val in s_param_values])
+            
+            
+            self.output_file_handle.write(f"{s_param_name}: [{values_string}]\n")
 
+        self.output_file_handle.write("\n") 
+
+        self.output_file_handle.flush() 
+        os.fsync(self.output_file_handle.fileno())
         
+        end = time.time()
         
-        with open(self.output_filepath, 'a') as f:
-            
-            f.write(f"{all_s_params_data}\n")
-            
-        print(f"Data written to {self.output_filepath}")
-        
+        print(f"\n Time it took to write data: {end-start} \n")
     
-    
+    def _open_output_file(self):
+        
+        try:
+            
+            self.output_file_handle = open(self.output_filepath, 'w')
+            
+            self.output_file_handle.write(f"# VNA Scan Data - Started: {datetime.datetime.now()}\n")
+            self.output_file_handle.write("# S-Parameter: [complex_value1, complex_value2, ...]\n")
+            self.output_file_handle.write("# Each data point is separated by an empty line.\n\n")
+            #print(f"Opened output file for writing: {self.output_filepath}")
+        except Exception as e:
+            #print(f"Error opening output file {self.output_filepath}: {e}")
+            self.output_file_handle = None 
+            
+    def _close_output_file(self):
+       
+        if self.output_file_handle:
+            try:
+                self.output_file_handle.close()
+                #print(f"Closed output file: {self.output_filepath}")
+            except Exception as e:
+                print(f"Error closing output file {self.output_filepath}: {e}")
+            finally:
+                self.output_file_handle = None
         
 
     def close(self) -> None:
