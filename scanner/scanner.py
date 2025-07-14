@@ -96,24 +96,25 @@ class Scanner():
             start=time.time()
             all_s_params_data = self.vna_sim()
             #print(all_s_params_data)
+            end_1 = time.time()
+            
+            print(f"Time to excecute vna sim func: {end_1-start} \n")
             
             if i == 0:
-                #print("First scan in place, no movement")
+                
                 self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                 self.vna_thread.start()
-                #self.plotter._get_and_process_data("Log Mag")
-                # SCAN
+               
                 self.vna_thread.join()
                 
             elif i == len(matrix[0])-1:
                 # SCAN END
-                #self.plotter._get_and_process_data("Log Mag")
+                
                 self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                 self.vna_thread.start()
-                #self.plotter._get_and_process_data("Log Mag")
-                # SCAN
+               
                 self.vna_thread.join()
-                #print("Scan END: ")
+                print("Scan Ended:")
                 
             else:
                 
@@ -241,11 +242,11 @@ class Scanner():
             self.output_file_handle = open(self.output_filepath, 'w')
             
             self.output_file_handle.write(f"# VNA Scan Data - Started: {datetime.datetime.now()}\n")
-            self.output_file_handle.write("# S-Parameter: [complex_value1, complex_value2, ...]\n")
-            self.output_file_handle.write("# Each data point is separated by an empty line.\n\n")
-            #print(f"Opened output file for writing: {self.output_filepath}")
+            
+        
+          
         except Exception as e:
-            #print(f"Error opening output file {self.output_filepath}: {e}")
+            
             self.output_file_handle = None 
             
     def _close_output_file(self):
@@ -253,7 +254,7 @@ class Scanner():
         if self.output_file_handle:
             try:
                 self.output_file_handle.close()
-                #print(f"Closed output file: {self.output_filepath}")
+         
             except Exception as e:
                 print(f"Error closing output file {self.output_filepath}: {e}")
             finally:
