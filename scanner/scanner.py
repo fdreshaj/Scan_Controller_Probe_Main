@@ -114,7 +114,8 @@ class Scanner():
                 self.vna_thread.start()
                
                 self.vna_thread.join()
-                print("Scan Ended:")
+                end_2 = time.time()
+                print(f"Scan Ended: {end_2-start} seconds")
                 
             else:
                 

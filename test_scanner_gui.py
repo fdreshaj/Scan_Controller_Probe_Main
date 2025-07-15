@@ -325,11 +325,12 @@ class MainWindow(QMainWindow):
             disconnect_button = QPushButton("Back")
             disconnect_button.clicked.connect(self.disconnect_pat)
             self.ui.config_layout.addRow(disconnect_button)
-
+            
             ### TESTING
             self.step_size = self.scan_controller.float_step_size
             self.length = self.scan_controller.y_axis_len
             matrix = self.scan_controller.matrix 
+            self.scan_testing()      
             ### TESTING
         else:   
             for i in reversed(range(self.ui.config_layout.rowCount())):
@@ -338,7 +339,8 @@ class MainWindow(QMainWindow):
                         self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
             connect_button = QPushButton("Generate")
             connect_button.clicked.connect(self.connect_pat)
-            self.ui.config_layout.addRow(connect_button)                
+            self.ui.config_layout.addRow(connect_button)
+                     
     #endregion
     
     
@@ -368,7 +370,7 @@ class MainWindow(QMainWindow):
     def disconnect_probe(self):
         self.scanner.scanner.probe_controller.disconnect()
         self.configure_probe(True)
-        self.connect = False
+        #self.connect = False
         
     @Slot()
     def finish_config(self):
