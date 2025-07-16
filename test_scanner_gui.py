@@ -25,7 +25,7 @@ from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
-
+import time     
 #endregion
 
 class MainWindow(QMainWindow):
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self.back_btn_check = False
         self.scan_controller = ScanPattern()
         self.file_controller = ScanFile()
+        self.motion_config_counter = 0
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -150,6 +151,10 @@ class MainWindow(QMainWindow):
     
     
     
+    #####
+    # Bugs - on reinstantiation of scanner the second time i.e connect motion then connect probe, the one that connected first will disconnect and user needs to connect again and issue will be fixed there
+    #     
+    #####
     ## CONFIG SETTINGS M/P/SP/SF
     #region config settings
     def set_configuration_setting_file(self,connected):
@@ -188,11 +193,12 @@ class MainWindow(QMainWindow):
                     
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
+        self.motion_connected = connected 
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
       
         
-        if connected:
+        if self.motion_connected:
            
             if self.pluginChosen_motion == False:
                
@@ -203,10 +209,10 @@ class MainWindow(QMainWindow):
                
                 from scanner.scanner import Scanner
                 self.scanner.scanner = Scanner(probe_controller=old_probe)
-
                 self.configure_motion(True)
-                connected = False
+                self.motion_connected = False
                 self.pluginChosen_motion = True
+                
     
 
             elif self.pluginChosen_motion == True:
@@ -221,6 +227,12 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
                 self.scan_testing()
+                self.motion_config_counter = self.motion_config_counter + 1
+                
+                if self.pluginChosen_probe==True and self.motion_config_counter == 1:
+                    self.scanner.scanner._probe_controller.disconnect() 
+                    time.sleep(0.001)
+                    self.scanner.scanner._probe_controller.connect()
 
         else:
                 
@@ -251,14 +263,19 @@ class MainWindow(QMainWindow):
                 
                 old_motion = self.scanner.scanner.motion_controller
                 
-            
+                self.motion_connected = True
                 # re‐instantiate Scanner
                 from scanner.scanner import Scanner
+                
                 self.scanner.scanner = Scanner(motion_controller=old_motion)
-
+                
                 self.configure_probe(True)
                 connected = False
                 self.pluginChosen_probe = True
+                
+                if self.pluginChosen_motion == True:
+                    
+                    self.scanner.scanner.motion_controller.disconnect()
                 
         
             elif self.pluginChosen_probe == True:
@@ -287,7 +304,11 @@ class MainWindow(QMainWindow):
                     back_btn = QPushButton("Back")
                     back_btn.clicked.connect(self.back_function)
                     self.ui.config_layout.addRow(back_btn)
-
+                    
+                if self.pluginChosen_motion == True:
+                    
+                    self.scanner.scanner.motion_controller.connect()    
+                
         else:
                 
                 for setting in controller.settings_pre_connect:

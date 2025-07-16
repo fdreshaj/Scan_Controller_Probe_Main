@@ -79,7 +79,7 @@ class Scanner():
             self._motion_controller = MotionController(PluginSwitcherMotion())
         else:
             self._motion_controller = MotionController(self.plugin_Motion)
-            
+        
     
     def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
         
