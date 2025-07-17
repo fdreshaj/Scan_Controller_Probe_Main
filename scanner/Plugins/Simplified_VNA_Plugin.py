@@ -61,8 +61,7 @@ class VNA_Plugin(ProbePlugin):
 
     def connect(self):
         vna_pick = PluginSettingString.get_value_as_string(self.vna_type)
-        # after i wrote this i remembered that this if statement is unecessary since the instantiated class handles it anyways 
-        # but i will remove unecesary code later on 
+   
         self.vna=InstrumentConnection(self.address.value, self.timeout.value).connect()
         
         

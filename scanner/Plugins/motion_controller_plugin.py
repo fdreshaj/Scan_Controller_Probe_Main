@@ -164,8 +164,11 @@ class motion_controller_plugin(MotionControllerPlugin):
         
     
     def set_acceleration(self, accels=None):
-        
-        acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        if accels == None:
+            acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        else:
+            acc = float(accels)
+            
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         

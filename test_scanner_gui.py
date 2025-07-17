@@ -220,32 +220,38 @@ class MainWindow(QMainWindow):
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
+                   
+                    
                 disconnect_button = QPushButton("Disconnect")
                 disconnect_button.clicked.connect(disconnect_function)
                 self.ui.config_layout.addRow(disconnect_button)
                 for setting in controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-
+                self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
+                print(self.accel)
                 self.scan_testing()
-                self.motion_config_counter = self.motion_config_counter + 1
                 
-                if self.pluginChosen_probe==True and self.motion_config_counter == 1:
-                    self.scanner.scanner._probe_controller.disconnect() 
-                    time.sleep(0.001)
-                    self.scanner.scanner._probe_controller.connect()
 
         else:
                 
                 for setting in controller.settings_pre_connect:
+                    
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+                   
+                
                 connect_button = QPushButton("Connect")
                 connect_button.clicked.connect(connect_function)
                 self.ui.config_layout.addRow(connect_button)
-                
+                i = 0
                 for setting in controller.settings_post_connect:
+                    
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)    
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                    
+                       
+                
+                    
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
         
@@ -264,7 +270,8 @@ class MainWindow(QMainWindow):
                 old_motion = self.scanner.scanner.motion_controller
                 
                 self.motion_connected = True
-                # re‐instantiate Scanner
+                
+                
                 from scanner.scanner import Scanner
                 
                 self.scanner.scanner = Scanner(motion_controller=old_motion)
@@ -306,8 +313,12 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(back_btn)
                     
                 if self.pluginChosen_motion == True:
-                    
-                    self.scanner.scanner.motion_controller.connect()    
+                    self.accel = float(self.accel) 
+                    print(self.accel)
+                    self.scanner.scanner.motion_controller.connect() 
+                    self.scanner.scanner.motion_controller.set_acceleration(self.accel)
+                    #need to update post connect button in GUI
+                       
                 
         else:
                 
