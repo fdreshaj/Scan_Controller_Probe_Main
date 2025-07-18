@@ -76,7 +76,8 @@ class PluginSwitcherMotion(MotionControllerPlugin):
     def get_channel_names(self) -> tuple[str, ...]:
         pass
 
-    
+    def set_config(self, amps, idle_p, idle_time):
+        pass
     def scan_begin(self) -> None:
         pass
     
