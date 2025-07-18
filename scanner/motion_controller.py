@@ -61,7 +61,9 @@ class MotionControllerPlugin(ABC):
     @abstractmethod
     def get_endstop_maximums(self) -> tuple[float, ...]:
         pass
-
+    @abstractmethod 
+    def set_config(self, amps,idle_p, idle_time):
+        pass
 
 class MotionController:
     _axis_labels: tuple[str, ...]
@@ -128,7 +130,9 @@ class MotionController:
         self.must_be_connected()
         self._driver.set_acceleration(axis_accels)
 
-
+    def set_config(self, amps,idle_p, idle_time):
+        self.must_be_connected()
+        self._driver.set_config(amps,idle_p, idle_time)
     #TODO:
     def move_absolute(self, axis_positions: dict[int, float]) -> None:
         self.must_be_connected()

@@ -216,6 +216,7 @@ class MainWindow(QMainWindow):
     
 
             elif self.pluginChosen_motion == True:
+                self.settings_motion_list = []
                 for setting in controller.settings_pre_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
@@ -225,10 +226,19 @@ class MainWindow(QMainWindow):
                 disconnect_button = QPushButton("Disconnect")
                 disconnect_button.clicked.connect(disconnect_function)
                 self.ui.config_layout.addRow(disconnect_button)
+                
                 for setting in controller.settings_post_connect:
+                    
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+                i = 0
+                for setting in controller.settings_pre_connect:
+                    self.settings_motion_list.append( PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[i]))
+                    i = i+1
+                    
+               
+                self.pos_mult = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[2])
                 self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
-                print(self.accel)
+                
                 self.scan_testing()
                 
 
@@ -316,8 +326,13 @@ class MainWindow(QMainWindow):
                     self.accel = float(self.accel) 
                     print(self.accel)
                     self.scanner.scanner.motion_controller.connect() 
-                    self.scanner.scanner.motion_controller.set_acceleration(self.accel)
-                    #need to update post connect button in GUI
+                    
+                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[4])
+                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[5])
+                    self.scanner.scanner.motion_controller.set_config(self.settings_motion_list[8],self.settings_motion_list[7],self.settings_motion_list[6])
+                    #In this case 8 7 6 correspont do amps idle percent and idle timeout respectively, need to refactor this to be more general for all possible plugins 
+                    #need to update post connect buttons in GUI
+                    # FIXME: Dont forget to do the same for velocity 
                        
                 
         else:

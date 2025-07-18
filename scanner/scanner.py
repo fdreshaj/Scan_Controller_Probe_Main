@@ -207,6 +207,7 @@ class Scanner():
         
         start = time.time_ns()
         #freqs = np.array(self._probe_controller.get_xaxis_coords())
+        self._probe_controller.scan_begin()
         all_s_params_data = self._probe_controller.scan_read_measurement(0, ())
         #s_param_names = self._probe_controller.get_channel_names()
         end = time.time_ns()
