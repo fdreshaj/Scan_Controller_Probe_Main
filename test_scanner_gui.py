@@ -323,10 +323,9 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.addRow(back_btn)
                     
                 if self.pluginChosen_motion == True:
-                    self.accel = float(self.accel) 
-                    print(self.accel)
-                    self.scanner.scanner.motion_controller.connect() 
                     
+                    self.scanner.scanner.motion_controller.connect() 
+                    print(f"{self.settings_motion_list[4]},{self.settings_motion_list[5]},{self.settings_motion_list[6]},{self.settings_motion_list[7]},{self.settings_motion_list[8]}")
                     self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[4])
                     self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[5])
                     self.scanner.scanner.motion_controller.set_config(self.settings_motion_list[8],self.settings_motion_list[7],self.settings_motion_list[6])

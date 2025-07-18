@@ -133,6 +133,11 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         idle_t_float = float(idle_time)
         
+        PluginSettingFloat.set_value_from_string(self.amps, f"{amp_float}")
+        PluginSettingFloat.set_value_from_string(self.idle_Percent, f"{idle_p_int}")
+        PluginSettingFloat.set_value_from_string(self.idle_timeout, f"{idle_t_float}")
+        
+        
         config_insn_x = geckoInstructions.ConfigureInsn(line=0,axis=0,i=amp_float,p=idle_p_int,s=idle_t_float)
         
         config_insn_y = geckoInstructions.ConfigureInsn(line=0,axis=1,i=amp_float,p=idle_p_int,s=idle_t_float)
@@ -197,10 +202,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         
     
     def set_acceleration(self, accels=None):
+        
+        
+        
         if accels == None:
             acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
         else:
             acc = float(accels)
+            PluginSettingFloat.set_value_from_string(self.acceleration, f"{accels}")
             
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
