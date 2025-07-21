@@ -320,7 +320,10 @@ class motion_controller_plugin(MotionControllerPlugin):
         
                 
             
-    def is_moving(self):
+    def is_moving(self,axis=None):
+        
+        is_moving_x = True
+        is_moving_y = True
         
         query_long_command = bytes([0x08, 0x00])         
         
@@ -333,9 +336,20 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         busy_bits= [self.res_qlong[2],self.res_qlong[12]]
         
-        print(busy_bits)
+        # 224,225 are values set by manufacturer
         
-        return busy_bits
+        if busy_bits[0] == 224:
+            is_moving_x = False
+        else:
+            is_moving_x = True
+            
+        if busy_bits[1] == 225:
+            is_moving_y = False
+        else:
+            is_moving_y = True
+        
+        movement = [is_moving_x,is_moving_y]
+        return movement
         
          
     def get_endstop_minimums(self):

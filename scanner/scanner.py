@@ -86,8 +86,8 @@ class Scanner():
 
         negative_thresh = -0.01
         positive_thresh = 0.01
-        step_size = step_size/2 ## For some reason the step size to mm ratio is double, need to check what is going on there but this is a quick fix for now FIXME:
-        negative_step_size = negative_step_size/2
+        step_size = step_size ## For some reason the step size to mm ratio is double, need to check what is going on there but this is a quick fix for now FIXME:
+        negative_step_size = negative_step_size
         self._open_output_file()
         
 
@@ -136,7 +136,7 @@ class Scanner():
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                     
-                    while busy_bit[0] != 224:
+                    while busy_bit[0] == True:
                         busy_bit = self._motion_controller.is_moving()
                         
                     self.vna_thread.join()
@@ -155,7 +155,7 @@ class Scanner():
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                     
-                    while busy_bit[0] != 224:
+                    while busy_bit[0] == True:
                         busy_bit = self._motion_controller.is_moving()
                         
                     self.vna_thread.join()
@@ -175,7 +175,7 @@ class Scanner():
                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                    self.vna_thread.start()
                        
-                   while busy_bit[1] != 225:
+                   while busy_bit[1] == True:
                        busy_bit = self._motion_controller.is_moving()
                        
                    self.vna_thread.join()
@@ -195,7 +195,7 @@ class Scanner():
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
     
-                    while busy_bit[1] != 225:
+                    while busy_bit[1] == True:
                         busy_bit = self._motion_controller.is_moving()
                     self.vna_thread.join()
                     

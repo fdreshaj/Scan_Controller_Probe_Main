@@ -53,7 +53,7 @@ class MotionControllerPlugin(ABC):
     def get_current_positions(self) -> tuple[float, ...]:
         pass
     @abstractmethod
-    def is_moving(self) -> bool:
+    def is_moving(self,axis) -> bool:
         pass
     @abstractmethod
     def get_endstop_minimums(self) -> tuple[float, ...]:
@@ -161,7 +161,7 @@ class MotionController:
                 axis_offsets[axis] += pos
         self.move_absolute(axis_offsets)
 
-    def is_moving(self) -> bool:
+    def is_moving(self,axis=None) -> bool:
         self.must_be_connected()
         return self._driver.is_moving()
     

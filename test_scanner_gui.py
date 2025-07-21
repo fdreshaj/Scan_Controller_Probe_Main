@@ -236,8 +236,8 @@ class MainWindow(QMainWindow):
                     i = i+1
                     
                
-                self.pos_mult = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[2])
-                self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
+                # self.pos_mult = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[2])
+                # self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
                 
                 self.scan_testing()
                 
