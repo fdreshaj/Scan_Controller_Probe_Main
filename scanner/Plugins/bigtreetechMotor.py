@@ -164,3 +164,5 @@ class motion_controller_plugin(MotionControllerPlugin):
         except Exception as e:
             print(f"An unexpected error occurred while sending command: {e}")
         return None
+    def home(self):
+        response = self.send_gcode_command("G28")

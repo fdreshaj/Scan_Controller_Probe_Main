@@ -9,6 +9,7 @@ import threading
 import datetime
 import time 
 import os
+
 class Scanner():
     _motion_controller: MotionController
 
@@ -18,7 +19,7 @@ class Scanner():
     
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
        # self.plotter = plotter_system()
-        self.output_filepath = "vna_data3.txt"
+        self.output_filepath = "vna_data4.txt"
         if PluginSwitcher.plugin_name == "":
             
             self.plugin_Probe = PluginSwitcher()
@@ -86,11 +87,11 @@ class Scanner():
 
         negative_thresh = -0.01
         positive_thresh = 0.01
-        step_size = step_size ## For some reason the step size to mm ratio is double, need to check what is going on there but this is a quick fix for now FIXME:
+        step_size = step_size ## For the gecko motion plugins:For some reason the step size to mm ratio is double so just divide by two here if needed, will bug fix later FIXME:
         negative_step_size = negative_step_size
         self._open_output_file()
         
-
+        self.start_data = time.time()
         for i in range (0,len(matrix[0])):
             
             start=time.time()
@@ -200,6 +201,7 @@ class Scanner():
                     self.vna_thread.join()
                     
                 end = time.time()
+                self._close_output_file()
                 print(f"Time it took for one scan movement: {end-start} \n")
    
                         
@@ -218,32 +220,34 @@ class Scanner():
         
     def vna_write_data(self,all_s_params_data):
         
-        start = time.time()
+        
         
                 
         for s_param_name, s_param_values in all_s_params_data.items():
             
             values_string = ", ".join([str(val) for val in s_param_values])
             
-            
-            self.output_file_handle.write(f"{s_param_name}: [{values_string}]\n")
+            data = f"{s_param_name}: [{values_string}]\n"
+            data_encode = data.encode("utf-8")
+            self.output_file_handle.write(data_encode)
 
-        self.output_file_handle.write("\n") 
+        self.output_file_handle.write("\n".encode("utf-8")) 
 
         self.output_file_handle.flush() 
         os.fsync(self.output_file_handle.fileno())
         
         end = time.time()
         
-        print(f"\n Time it took to write data: {end-start} \n")
+        print(f"\n Time it took to write data: {end-self.start_data} \n")
     
     def _open_output_file(self):
         
         try:
             
-            self.output_file_handle = open(self.output_filepath, 'w')
-            
-            self.output_file_handle.write(f"# VNA Scan Data - Started: {datetime.datetime.now()}\n")
+            self.output_file_handle = open(self.output_filepath, 'wb')
+            header = f"# VNA Scan Data - Started: {datetime.datetime.now()}\n"
+            header_encoding = header.encode("utf-8")
+            self.output_file_handle.write(header_encoding)
             
         
           

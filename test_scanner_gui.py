@@ -222,7 +222,6 @@ class MainWindow(QMainWindow):
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
                    
-                    
                 disconnect_button = QPushButton("Disconnect")
                 disconnect_button.clicked.connect(disconnect_function)
                 self.ui.config_layout.addRow(disconnect_button)
@@ -525,8 +524,6 @@ class MainWindow(QMainWindow):
     
     def save_btn(self):
         self.plotter.save()
-        
-    
 
     def back_function(self):
 
