@@ -181,8 +181,8 @@ class VNA_Plugin(ProbePlugin):
             raw = self.vna.query(f":CALC1:PAR{idx}:DATA:SDAT?")
             tokens = self._strip_block(raw)
             vals = list(map(float, tokens))
-            results[name] = [complex(vals[i], vals[i+1])
-                            for i in range(0, len(vals), 2)]
+            results[name] = np.array([complex(vals[i], vals[i+1])
+                            for i in range(0, len(vals), 2)])
         return results
     
     def scan_read_measurement_hdf5(self, scan_index=None, scan_location=None, hdf5_filename="scan_data.h5"):
