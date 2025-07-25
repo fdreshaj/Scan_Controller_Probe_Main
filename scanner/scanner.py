@@ -11,6 +11,7 @@ import time
 import os
 import struct
 from npy_append_array import NpyAppendArray
+import h5py
 
 class Scanner():
     _motion_controller: MotionController
@@ -22,7 +23,7 @@ class Scanner():
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
        # self.plotter = plotter_system()
         self.output_filepath = "vna_data5.bin"
-    
+        self.data_inc = 0
         if PluginSwitcher.plugin_name == "":
             
             self.plugin_Probe = PluginSwitcher()
@@ -87,6 +88,7 @@ class Scanner():
     
     def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
         
+        self.matrix_copy = matrix
 
         negative_thresh = -0.01
         positive_thresh = 0.01
@@ -96,6 +98,9 @@ class Scanner():
         print("Attempting to open file")
         
         self.start_data = time.time()
+       
+        self.HDF5FILE = h5py.File(f"ScanFile.hdf5", mode="a")
+        
         for i in range (0,len(matrix[0])):
             
             start=time.time()
@@ -122,6 +127,8 @@ class Scanner():
                 end_2 = time.time()
                 self._close_output_file()
                 print(f"Scan Ended: {end_2-start} seconds at point {i}")
+                print(f"HDF5 File Creation: ")
+                
                 
             else:
                 
@@ -223,13 +230,13 @@ class Scanner():
         
         return all_s_params_data
         
-    def vna_write_data(self,all_s_params_data):
+    def vna_write_data(self,all_s_params_data,frequencies=0):
         
         if self.output_file_handle is None:
             print("Error: output_file_handle is None in vna_write_data. File was not opened successfully.")
             return
         
-                
+        
         for s_param_name, s_param_values in all_s_params_data.items():
             
             values_string = ", ".join([str(val) for val in s_param_values])
@@ -241,6 +248,13 @@ class Scanner():
             s_param_values.tofile(self.output_file_handle,sep ='', format = 'f')
            
             print(s_param_values[0])
+            
+            self.HDF5FILE.create_group(f"/Coordinate({self.data_inc})")
+            self.HDF5FILE.create_group(f"/Coordinate({self.data_inc})/S11")
+            dset = self.HDF5FILE.create_dataset(f"/Coordinate({self.data_inc})/S11/data",data=s_param_values)
+            
+            self.data_inc = self.data_inc+1
+            
             # with NpyAppendArray(self.output_filepath, delete_if_exists=False) as npaa:
             #     npaa.append(s_param_values)
 
@@ -284,7 +298,22 @@ class Scanner():
             finally:
                 self.output_file_handle = None
         
-
+    def file_combination_HDF5(self,matrix,freq,s_param_magnitudes,s_param_names):
+       
+        # s_param_names=self._probe_controller.get_channel_names()
+        # s_param_magnitudes = [] #numpy array 
+        # freq = []
+        
+        for i in range(0,len(matrix[0])):
+            
+            
+            for j in range(0,len(s_param_names)):
+                self.HDF5FILE[f"/Coordinate_{matrix[:,i]}/{s_param_names[j]}/Frequencies"] = freq
+                self.HDF5FILE[f"/Coordinate_{matrix[:,i]}/{s_param_names[j]}/Frequencies"].attrs["Magnitudes"] = s_param_magnitudes
+            
+        
+        
+       
     def close(self) -> None:
         self._motion_controller.disconnect()
         self._probe_controller.disconnect()

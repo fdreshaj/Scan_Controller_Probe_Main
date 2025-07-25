@@ -201,3 +201,5 @@ pyfileIO.py
 vna_data5.bin
 my_custom_file.complex
 scanner/file_type_version_1.py
+ScanFile.hdf5
+scantester.hdf5

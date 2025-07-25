@@ -94,3 +94,8 @@ class ProbeController:
     def scan_end(self) -> None:
         self.must_be_connected()
         self._probe.scan_end()
+        
+    def get_channel_names(self):
+        self.must_be_connected()
+        channel_names=self._probe.get_channel_names()
+        return channel_names
