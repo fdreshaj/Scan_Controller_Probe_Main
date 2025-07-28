@@ -159,6 +159,7 @@ class MainWindow(QMainWindow):
     #region config settings
     def set_configuration_setting_file(self,connected):
         print(f"Connected Status GUI: {connected}")
+        self.file_display_label_text =[]
         if connected == True:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
@@ -166,14 +167,15 @@ class MainWindow(QMainWindow):
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                
+                    self.file_display_label_text.append(f"{setting.display_label}")
+                    print(setting.display_label)
             for setting in self.file_controller.settings_post_connect:
                     
                     PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
                     plug = QPluginSetting(setting)
                     
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                    
+                
             go_back_file = QPushButton("Back")
             go_back_file.clicked.connect(self.go_back_file)
             self.ui.config_layout.addRow(go_back_file)  
@@ -495,9 +497,18 @@ class MainWindow(QMainWindow):
         self.step_size = self.scan_controller.float_step_size
         self.length = self.scan_controller.y_axis_len
         matrix = self.scan_controller.matrix 
-
+        self.metaData=[]
+        inc = 0
+        for setting in self.file_controller.settings_pre_connect:
+            plug = QPluginSetting(setting)
+            self.metaData.append(PluginSettingString.get_value_as_string(self.file_controller.settings_pre_connect[inc]))
+            inc = inc +1
+        print(self.file_controller.settings_pre_connect)
+        self.metaData_labels = self.file_display_label_text
+        
+            
         self.negative_step_size = np.negative(self.step_size)
-        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
+        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size,self.metaData,self.metaData_labels))
         self.scan_thread.start()
         
             

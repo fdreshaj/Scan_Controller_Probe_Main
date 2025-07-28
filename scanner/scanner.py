@@ -86,7 +86,7 @@ class Scanner():
             self._motion_controller = MotionController(self.plugin_Motion)
         
     
-    def run_scan(self,matrix,length,step_size,negative_step_size) -> None:
+    def run_scan(self,matrix,length,step_size,negative_step_size,meta_data,meta_data_labels) -> None:
         
         self.matrix_copy = matrix
 
@@ -95,11 +95,18 @@ class Scanner():
         step_size = step_size ## For the gecko motion plugins:For some reason the step size to mm ratio is double so just divide by two step size and negative step size if needed, will fix later FIXME:
         negative_step_size = negative_step_size
         self._open_output_file()
+        self.frequencies = self._probe_controller.get_xaxis_coords()
         print("Attempting to open file")
         
         self.start_data = time.time()
        
-        self.HDF5FILE = h5py.File(f"ScanFile.hdf5", mode="a")
+        self.HDF5FILE = h5py.File(f"{meta_data[1]}.hdf5", mode="a") #meta 1 is filename
+        
+        for i in range(0,len(meta_data)):
+            self.HDF5FILE.attrs[f'{meta_data_labels[i]}'] = f'{meta_data[i]}'
+        self.HDF5FILE.create_group(f"/Frequencies")
+        self.HDF5FILE.create_group("/Point_Data")
+        dset2 = self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
         
         for i in range (0,len(matrix[0])):
             
@@ -230,12 +237,11 @@ class Scanner():
         
         return all_s_params_data
         
-    def vna_write_data(self,all_s_params_data,frequencies=0):
+    def vna_write_data(self,all_s_params_data):
         
-        if self.output_file_handle is None:
-            print("Error: output_file_handle is None in vna_write_data. File was not opened successfully.")
-            return
-        
+        # if self.output_file_handle is None:
+        #     print("Error: output_file_handle is None in vna_write_data. File was not opened successfully.")
+        #     return
         
         for s_param_name, s_param_values in all_s_params_data.items():
             
@@ -243,15 +249,13 @@ class Scanner():
             
             # self.output_file_handle.write(s_param_name.encode("utf-8"))
             #np.save(file= self.output_filepath, arr = s_param_values,allow_pickle= False)
-            print(f"DEBUG: s_param_values dtype = {s_param_values.dtype}")
-            print(f"DEBUG: s_param_values shape = {s_param_values.shape}")
-            s_param_values.tofile(self.output_file_handle,sep ='', format = 'f')
+            # s_param_values.tofile(self.output_file_handle,sep ='', format = 'f')
            
-            print(s_param_values[0])
             
-            self.HDF5FILE.create_group(f"/Coordinate({self.data_inc})")
-            self.HDF5FILE.create_group(f"/Coordinate({self.data_inc})/S11")
-            dset = self.HDF5FILE.create_dataset(f"/Coordinate({self.data_inc})/S11/data",data=s_param_values)
+            self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})")
+            self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}")
+            
+            dset = self.HDF5FILE.create_dataset(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}/data",data=s_param_values)
             
             self.data_inc = self.data_inc+1
             
@@ -260,8 +264,8 @@ class Scanner():
 
         # self.output_file_handle.write("\n".encode("utf-8")) 
 
-        self.output_file_handle.flush() 
-        os.fsync(self.output_file_handle.fileno())
+        # self.output_file_handle.flush() 
+        # os.fsync(self.output_file_handle.fileno())
         
         end = time.time()
         
@@ -271,10 +275,12 @@ class Scanner():
         
         try:
             
-            self.output_file_handle = open(self.output_filepath, 'ab')
-            print("FILE OPENED SUCCESSFULY")
-            if self.output_file_handle == None:
-                print("Something went wrong:")
+            # self.output_file_handle = open(self.output_filepath, 'ab')
+            # print("FILE OPENED SUCCESSFULY")
+            # if self.output_file_handle == None:
+            #     print("Something went wrong:")
+                
+            pass
           
         except Exception as e:
             print(f"Error opening output file {self.output_filepath}: {e}")
@@ -285,18 +291,19 @@ class Scanner():
             
 
             self.output_file_handle = None 
+        
             
     def _close_output_file(self):
         
-       
-        if self.output_file_handle:
-            try:
-                self.output_file_handle.close()
-                print("OUTPUT FILE CLOOOOOSED!!!!")
-            except Exception as e:
-                print(f"Error closing output file {self.output_filepath}: {e}")
-            finally:
-                self.output_file_handle = None
+       pass
+        # if self.output_file_handle:
+        #     try:
+        #         self.output_file_handle.close()
+        #         print("OUTPUT FILE CLOOOOOSED!!!!")
+        #     except Exception as e:
+        #         print(f"Error closing output file {self.output_filepath}: {e}")
+        #     finally:
+        #         self.output_file_handle = None
         
     def file_combination_HDF5(self,matrix,freq,s_param_magnitudes,s_param_names):
        

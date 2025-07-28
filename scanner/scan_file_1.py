@@ -3,7 +3,7 @@ from scanner.scan_file_controller import ScanFileControllerPlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 import tkinter as tk
 from tkinter import filedialog
-
+from datetime import datetime
 
 
 class ScanFile(ScanFileControllerPlugin):
@@ -15,11 +15,9 @@ class ScanFile(ScanFileControllerPlugin):
         
         self._is_connected = False
         
-        self.file_type = PluginSettingString("File Type: ", "CSV", select_options=["CSV","HDF5",".Scan File"], restrict_selections=True)
+        self.file_type = PluginSettingString("File Type: ", "HDF5", select_options=["Bin","HDF5"], restrict_selections=True)
         
-        self.file_name = PluginSettingString("File Name: ", "Scan File")
-        
-        self.file_directory =PluginSettingString("File Directory: ", "File Dir")
+        self.file_name = PluginSettingString("File Name: ", f"{datetime.now().strftime("ScanFile_%Y-%m-%d_%H_%M_%S_%f")}")
          
         self.file_scan_dimensions = PluginSettingString(" Scan Dimensions: ", "Scan Dimensions")
        
@@ -27,7 +25,7 @@ class ScanFile(ScanFileControllerPlugin):
         
         self.file_material_descrip = PluginSettingString(" Scan Material Description: ", "Material Description")
         
-        self.file_additional_info = PluginSettingString(" Additional Info: ", "N/A if not needed")
+        
 
         self.add_setting_pre_connect(self.file_type)
         
@@ -39,13 +37,10 @@ class ScanFile(ScanFileControllerPlugin):
 
         self.add_setting_pre_connect(self.file_material_descrip)
         
+   
+    
         
-        self.add_setting_pre_connect(self.file_additional_info)
-        
-        
-        
-        self.add_setting_post_connect(self.file_directory)
-        
+    
        
         
     def connect(self) -> None:
