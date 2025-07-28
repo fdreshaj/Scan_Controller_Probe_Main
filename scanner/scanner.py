@@ -13,6 +13,7 @@ import struct
 from npy_append_array import NpyAppendArray
 import h5py
 
+
 class Scanner():
     _motion_controller: MotionController
 
@@ -123,7 +124,7 @@ class Scanner():
                 self.vna_thread.start()
                
                 self.vna_thread.join()
-                
+                self.data_inc = self.data_inc+1
             elif i == len(matrix[0])-1:
                 # SCAN END
                 
@@ -152,7 +153,7 @@ class Scanner():
                     
                     busy_bit = self._motion_controller.is_moving()
                     
-                
+                    self.data_inc = self.data_inc+1
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                     
@@ -171,7 +172,7 @@ class Scanner():
                     
                     
                     busy_bit = self._motion_controller.is_moving()
-                    
+                    self.data_inc = self.data_inc+1
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                     
@@ -192,6 +193,7 @@ class Scanner():
                    
                    
                    busy_bit = self._motion_controller.is_moving()
+                   self.data_inc = self.data_inc+1
                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                    self.vna_thread.start()
                        
@@ -211,7 +213,7 @@ class Scanner():
                     busy_bit = self._motion_controller.is_moving()
                     
                     
-                        
+                    self.data_inc = self.data_inc+1
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
     
@@ -239,33 +241,20 @@ class Scanner():
         
     def vna_write_data(self,all_s_params_data):
         
-        # if self.output_file_handle is None:
-        #     print("Error: output_file_handle is None in vna_write_data. File was not opened successfully.")
-        #     return
-        
+        self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})")
         for s_param_name, s_param_values in all_s_params_data.items():
             
-            values_string = ", ".join([str(val) for val in s_param_values])
             
-            # self.output_file_handle.write(s_param_name.encode("utf-8"))
-            #np.save(file= self.output_filepath, arr = s_param_values,allow_pickle= False)
-            # s_param_values.tofile(self.output_file_handle,sep ='', format = 'f')
-           
+            print(f"s param: {s_param_name}")
             
-            self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})")
+            
             self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}")
             
             dset = self.HDF5FILE.create_dataset(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}/data",data=s_param_values)
             
-            self.data_inc = self.data_inc+1
             
-            # with NpyAppendArray(self.output_filepath, delete_if_exists=False) as npaa:
-            #     npaa.append(s_param_values)
-
-        # self.output_file_handle.write("\n".encode("utf-8")) 
-
-        # self.output_file_handle.flush() 
-        # os.fsync(self.output_file_handle.fileno())
+          
+            
         
         end = time.time()
         

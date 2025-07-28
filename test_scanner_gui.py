@@ -330,9 +330,7 @@ class MainWindow(QMainWindow):
                     self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[4])
                     self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[5])
                     self.scanner.scanner.motion_controller.set_config(self.settings_motion_list[8],self.settings_motion_list[7],self.settings_motion_list[6])
-                    #In this case 8 7 6 correspont do amps idle percent and idle timeout respectively, need to refactor this to be more general for all possible plugins 
-                    #need to update post connect buttons in GUI
-                    # FIXME: Dont forget to do the same for velocity 
+                    #In this case 8 7 6 correspont to amps idle percent and idle timeout respectively, need to refactor this to be more general for all possible plugins FIXME: 
                        
                 
         else:
