@@ -24,7 +24,7 @@ class Scanner():
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
        # self.plotter = plotter_system()
         self.output_filepath = "vna_data5.bin"
-        self.data_inc = 0
+        
         if PluginSwitcher.plugin_name == "":
             
             self.plugin_Probe = PluginSwitcher()
@@ -88,9 +88,8 @@ class Scanner():
         
     
     def run_scan(self,matrix,length,step_size,negative_step_size,meta_data,meta_data_labels) -> None:
-        
+        self.data_inc = 0
         self.matrix_copy = matrix
-
         negative_thresh = -0.01
         positive_thresh = 0.01
         step_size = step_size ## For the gecko motion plugins:For some reason the step size to mm ratio is double so just divide by two step size and negative step size if needed, will fix later FIXME:
