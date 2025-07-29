@@ -122,6 +122,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
  
     def is_moving(self,axis=None) -> bool:
+        # FIXME:
         # busy_command = "M114"
         # busy_bit = self.send_gcode_command(busy_command)
         

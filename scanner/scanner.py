@@ -87,6 +87,8 @@ class Scanner():
             self._motion_controller = MotionController(self.plugin_Motion)
         
     
+    
+    
     def run_scan(self,matrix,length,step_size,negative_step_size,meta_data,meta_data_labels) -> None:
         self.data_inc = 0
         self.matrix_copy = matrix
@@ -240,25 +242,31 @@ class Scanner():
         
     def vna_write_data(self,all_s_params_data):
         
-        self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})")
+        start_data = time.time()
+        self.HDF5FILE.create_group(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}")
         for s_param_name, s_param_values in all_s_params_data.items():
             
             
-            print(f"s param: {s_param_name}")
             
             
-            self.HDF5FILE.create_group(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}")
             
-            dset = self.HDF5FILE.create_dataset(f"/Point_Data/Coordinate({self.matrix_copy[:,self.data_inc]})/{s_param_name}/data",data=s_param_values)
+            self.HDF5FILE.create_group(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}/{s_param_name}")
+            
+            dset = self.HDF5FILE.create_dataset(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}/{s_param_name}/data",data=s_param_values)
             
             
-          
             
-        
         end = time.time()
         
-        print(f"\n Time it took to write data: {end-self.start_data} \n")
-    
+        self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:,self.data_inc],))
+        self.motion_tracker_thread.start()
+        print(f"\n Time it took to write data: {end-start_data} \n")
+        
+    def motion_tracker(self,vector):
+        print(vector)
+        self.motion_tracker_thread.end()
+        
+        
     def _open_output_file(self):
         
         try:
