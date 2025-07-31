@@ -3,7 +3,7 @@ from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, Pl
 import serial
 from serial.tools import list_ports
 import pyvisa
-
+import threading
 class motion_controller_plugin(MotionControllerPlugin):
     def __init__(self):
         
@@ -108,12 +108,12 @@ class motion_controller_plugin(MotionControllerPlugin):
             move_string = f"Y{raw_value}"
             move_command = f"G0 {move_string}" 
 
-        response = self.send_gcode_command(move_command)
+        self.response = self.send_gcode_command(move_command)
         # busy_bit = self.send_gcode_command(busy_command)
         # while busy_bit != 'ok':
         #     busy_bit = self.send_gcode_command(busy_command)
         
-  
+        return self.response
     def home(self, axes: list[int]) -> dict[int, float]:
         pass
 
@@ -122,14 +122,18 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
  
     def is_moving(self,axis=None) -> bool:
-        # FIXME:
-        # busy_command = "M114"
-        # busy_bit = self.send_gcode_command(busy_command)
+
+        movement=[False,False]
+        res_x = self.move_absolute({0:0})
         
-        # while busy_bit != 'ok':
-        #   busy_bit = self.send_gcode_command(busy_command)
+        res_y = self.move_absolute({1:0})
         
-        movement = [False,False]
+        if res_x != 'ok':
+            movement[0] = True
+        if res_y != 'ok':
+            movement[1] = True
+        
+
         return movement
         
     def get_endstop_minimums(self) -> tuple[float, ...]:
