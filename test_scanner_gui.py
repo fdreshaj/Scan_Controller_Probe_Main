@@ -152,13 +152,13 @@ class MainWindow(QMainWindow):
     
     
     #####
-    # Bugs - on reinstantiation of scanner the second time i.e connect motion then connect probe, the one that connected first will disconnect and user needs to connect again and issue will be fixed there
+    #
     #     
     #####
     ## CONFIG SETTINGS M/P/SP/SF
     #region config settings
     def set_configuration_setting_file(self,connected):
-        print(f"Connected Status GUI: {connected}")
+        
         self.file_display_label_text =[]
         if connected == True:
             for i in reversed(range(self.ui.config_layout.rowCount())):
@@ -168,7 +168,7 @@ class MainWindow(QMainWindow):
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
                     self.file_display_label_text.append(f"{setting.display_label}")
-                    print(setting.display_label)
+                    
             for setting in self.file_controller.settings_post_connect:
                     
                     PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
@@ -356,7 +356,7 @@ class MainWindow(QMainWindow):
                     
     def set_configuration_setting_pattern(self,connected) -> None:
         
-        print(f"Connected Status GUI: {connected}")
+        
         if connected == True:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
@@ -450,7 +450,7 @@ class MainWindow(QMainWindow):
     def get_file_dir(self):
 
         self.file_directory = fd.askdirectory()
-        print(f"Selected directory: {self.file_directory}")
+        
         
     
     ## Fix after 
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
             plug = QPluginSetting(setting)
             self.metaData.append(PluginSettingString.get_value_as_string(self.file_controller.settings_pre_connect[inc]))
             inc = inc +1
-        print(self.file_controller.settings_pre_connect)
+        
         self.metaData_labels = self.file_display_label_text
         
             

@@ -36,7 +36,7 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def move_absolute(self, move_pos: dict[int, float]) -> dict[int, float] | None:
         
-        print(f"Moving: {move_pos}")
+        pass
         
         
     def home(self, axes: list[int]) -> dict[int, float]:

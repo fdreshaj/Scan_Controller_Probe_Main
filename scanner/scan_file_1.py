@@ -25,7 +25,7 @@ class ScanFile(ScanFileControllerPlugin):
         
         self.file_material_descrip = PluginSettingString(" Scan Material Description: ", "Material Description")
         
-        
+        self.progress = PluginSettingString("Progress: ", "0%")
 
         self.add_setting_pre_connect(self.file_type)
         
@@ -37,7 +37,7 @@ class ScanFile(ScanFileControllerPlugin):
 
         self.add_setting_pre_connect(self.file_material_descrip)
         
-   
+        self.add_setting_post_connect(self.progress)
     
         
     

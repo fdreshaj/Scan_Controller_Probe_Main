@@ -12,7 +12,9 @@ import os
 import struct
 from npy_append_array import NpyAppendArray
 import h5py
-
+import tkinter as tk
+from tkinter import ttk
+from alive_progress import alive_bar
 
 class Scanner():
     _motion_controller: MotionController
@@ -98,7 +100,6 @@ class Scanner():
         negative_step_size = negative_step_size
         self._open_output_file()
         self.frequencies = self._probe_controller.get_xaxis_coords()
-        print("Attempting to open file")
         
         self.start_data = time.time()
        
@@ -110,122 +111,122 @@ class Scanner():
         self.HDF5FILE.create_group("/Point_Data")
         dset2 = self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
         
-        for i in range (0,len(matrix[0])):
+        with alive_bar(len(matrix[0])) as bar:
             
-            start=time.time()
-            all_s_params_data = self.vna_sim()
-            #print(all_s_params_data)
-            end_1 = time.time()
-            
-            print(f"Time to excecute vna sim func: {end_1-start} \n")
-            
-            if i == 0:
+            for i in range (0,len(matrix[0])):
                 
-                self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
-                self.vna_thread.start()
-               
-                self.vna_thread.join()
-                self.data_inc = self.data_inc+1
-            elif i == len(matrix[0])-1:
-                # SCAN END
+                start=time.time()
+                all_s_params_data = self.vna_sim()
+                #print(all_s_params_data)
+                end_1 = time.time()
                 
-                self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
-                self.vna_thread.start()
-               
-                self.vna_thread.join()
-                end_2 = time.time()
-                self._close_output_file()
-                print(f"Scan Ended: {end_2-start} seconds at point {i}")
-                print(f"HDF5 File Creation: ")
+                print(matrix[:,self.data_inc])
                 
-                
-            else:
-                
-                difference = matrix[:,i] - matrix[:,i-1]
-                #x axis
-               
-                
-                if difference[0] > positive_thresh:
+                if i == 0:
                     
-              
-                    self._motion_controller.move_absolute({0:step_size})
-                    
-                    
-                    
-                    busy_bit = self._motion_controller.is_moving()
-                    
-                    self.data_inc = self.data_inc+1
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
-                    
-                    while busy_bit[0] == True:
-                        busy_bit = self._motion_controller.is_moving()
-                        
+                
                     self.vna_thread.join()
+                    self.data_inc = self.data_inc+1
+                elif i == len(matrix[0]):
+                    # SCAN END
                     
-                elif difference[0] < negative_thresh:
+                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                    self.vna_thread.start()
+                
+                    self.vna_thread.join()
+                    end_2 = time.time()
+                    self._close_output_file()
+                    
+                    
+                    
+                else:
+                    
+                    difference = matrix[:,i] - matrix[:,i-1]
+                    #x axis
                 
                     
-                    self._motion_controller.move_absolute({0:negative_step_size})
-                   
+                    if difference[0] > positive_thresh:
+                        
+                
+                        self._motion_controller.move_absolute({0:step_size})
+                        
+                        
+                        
+                        busy_bit = self._motion_controller.is_moving()
+                        
+                        self.data_inc = self.data_inc+1
+                        self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                        self.vna_thread.start()
+                        
+                        while busy_bit[0] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                            
+                        self.vna_thread.join()
+                        
+                    elif difference[0] < negative_thresh:
+                    
+                        
+                        self._motion_controller.move_absolute({0:negative_step_size})
+                    
 
+                        
+                        
+                        
+                        busy_bit = self._motion_controller.is_moving()
+                        self.data_inc = self.data_inc+1
+                        self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                        self.vna_thread.start()
+                        
+                        while busy_bit[0] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                            
+                        self.vna_thread.join()
+                        
+                        
+                        
+                        
+                    #y axis
+                    if difference[1] > positive_thresh:
                     
                     
+                        self._motion_controller.move_absolute({1:step_size})
+                        
+                        
+                        
+                        busy_bit = self._motion_controller.is_moving()
+                        self.data_inc = self.data_inc+1
+                        self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                        self.vna_thread.start()
+                        
+                        while busy_bit[1] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                            
+                        self.vna_thread.join()
                     
-                    busy_bit = self._motion_controller.is_moving()
-                    self.data_inc = self.data_inc+1
-                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
-                    self.vna_thread.start()
                     
-                    while busy_bit[0] == True:
+                    elif difference[1] < negative_thresh:
+                        
+                        self._motion_controller.move_absolute({1:negative_step_size})
+                    
+                        
+                        
+                    
                         busy_bit = self._motion_controller.is_moving()
                         
-                    self.vna_thread.join()
-                    print(f"Scan Point {i+1}")
-                    
-                    
-                    
-                #y axis
-                if difference[1] > positive_thresh:
-                   
-                   
-                   self._motion_controller.move_absolute({1:step_size})
-                   
-                   
-                   
-                   busy_bit = self._motion_controller.is_moving()
-                   self.data_inc = self.data_inc+1
-                   self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
-                   self.vna_thread.start()
-                       
-                   while busy_bit[1] == True:
-                       busy_bit = self._motion_controller.is_moving()
-                       
-                   self.vna_thread.join()
-                   
-                   
-                elif difference[1] < negative_thresh:
-                    
-                    self._motion_controller.move_absolute({1:negative_step_size})
-                   
-                    
-                    
-                   
-                    busy_bit = self._motion_controller.is_moving()
-                    
-                    
-                    self.data_inc = self.data_inc+1
-                    self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
-                    self.vna_thread.start()
-    
-                    while busy_bit[1] == True:
-                        busy_bit = self._motion_controller.is_moving()
-                    self.vna_thread.join()
-                    
-                end = time.time()
+                        
+                        self.data_inc = self.data_inc+1
+                        self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
+                        self.vna_thread.start()
+        
+                        while busy_bit[1] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                        self.vna_thread.join()
+                        
+                    end = time.time()
+                    bar()
                 
-                print(f"Time it took for one scan movement: {end-start} \n")
-   
                         
     def vna_sim(self):
         
@@ -236,8 +237,7 @@ class Scanner():
         #s_param_names = self._probe_controller.get_channel_names()
         end = time.time_ns()
         
-        print(f"Time it took for vna data transfer: {end-start}")
-        
+       
         return all_s_params_data
         
     def vna_write_data(self,all_s_params_data):
@@ -260,13 +260,16 @@ class Scanner():
         
         self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:,self.data_inc],))
         self.motion_tracker_thread.start()
-        print(f"\n Time it took to write data: {end-start_data} \n")
+        
         
     def motion_tracker(self,vector):
-        print(vector)
-        self.motion_tracker_thread.end()
+        
+       
+        self.percentage = self.data_inc/len(self.matrix_copy[0]) *100
         
         
+        
+    
     def _open_output_file(self):
         
         try:
@@ -279,8 +282,7 @@ class Scanner():
             pass
           
         except Exception as e:
-            print(f"Error opening output file {self.output_filepath}: {e}")
-                       
+                      
             header = f""
             header_encoding = header.encode("utf-8")
             self.output_file_handle.write(header_encoding)

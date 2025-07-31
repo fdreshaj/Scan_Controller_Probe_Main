@@ -145,7 +145,7 @@ class MotionController:
         #     if axis_positions[ind] < self._endstop_minimums[ind]:
         #         axis_positions[ind] = self._endstop_minimums[ind]
         ret_positions = self._driver.move_absolute(axis_positions)
-        print(f"Ret positions {axis_positions}")
+        
         if ret_positions is None:
             ret_positions = axis_positions
         for ind,val in axis_positions.items():
