@@ -108,9 +108,12 @@ class Scanner():
         for i in range(0,len(meta_data)):
             self.HDF5FILE.attrs[f'{meta_data_labels[i]}'] = f'{meta_data[i]}'
         self.HDF5FILE.create_group(f"/Frequencies")
+        self.HDF5FILE.attrs['Units'] = 'Hz'
         self.HDF5FILE.create_group("/Point_Data")
         dset2 = self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
-        
+        dset3 = self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0,:])
+        dset4 = self.HDF5FILE.create_dataset("/Coords/y_data",data=self.matrix_copy[1,:])
+        dset5 = self.HDF5FILE.create_dataset("/Coords/z_data",data=np.zeros(len(matrix[0])))
         with alive_bar(len(matrix[0])) as bar:
             
             for i in range (0,len(matrix[0])):
@@ -254,7 +257,7 @@ class Scanner():
             
             dset = self.HDF5FILE.create_dataset(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}/{s_param_name}/data",data=s_param_values)
             
-            
+           
             
         end = time.time()
         
