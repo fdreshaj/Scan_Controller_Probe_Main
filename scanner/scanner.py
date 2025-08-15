@@ -114,27 +114,80 @@ class Scanner():
         dset3 = self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0,:])
         dset4 = self.HDF5FILE.create_dataset("/Coords/y_data",data=self.matrix_copy[1,:])
         dset5 = self.HDF5FILE.create_dataset("/Coords/z_data",data=np.zeros(len(matrix[0])))
-        with alive_bar(len(matrix[0])) as bar:
+        with alive_bar(len(matrix[0])-1) as bar:
             
-            for i in range (0,len(matrix[0])):
+            for i in range (0,len(matrix[0])-1):
                 
                 start=time.time()
                 all_s_params_data = self.vna_sim()
                 #print(all_s_params_data)
                 end_1 = time.time()
                 
-                print(matrix[:,self.data_inc])
+                print(matrix[:,i])
                 
-                if i == 0:
-                    
+                if self.data_inc == 0:
+                    # SCAN START
+                    print("Writing to index", self.data_inc)
+
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                 
                     self.vna_thread.join()
                     self.data_inc = self.data_inc+1
-                elif i == len(matrix[0]):
-                    # SCAN END
+                    diff_Var = matrix[:,i] - matrix[:,i-1] 
+                    if diff_Var[0] > positive_thresh:
+                        self._motion_controller.move_absolute({0:step_size})
+                            
+                            
+                            
+                        busy_bit = self._motion_controller.is_moving()
+                            
+                        
+                            
+                        while busy_bit[0] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                        
+                    elif diff_Var[0] < negative_thresh:
+                        self._motion_controller.move_absolute({0:negative_step_size})
+                            
+                            
+                            
+                        busy_bit = self._motion_controller.is_moving()
+                            
+                        
+                            
+                        while busy_bit[0] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                        
+                    elif diff_Var[1] > positive_thresh:
+                        self._motion_controller.move_absolute({1:step_size})
+                            
+                            
+                            
+                        busy_bit = self._motion_controller.is_moving()
+                            
+                        
+                            
+                        while busy_bit[1] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                        
+                    elif diff_Var[1] < negative_thresh:
+                        self._motion_controller.move_absolute({1:negative_step_size})
+                            
+                            
+                            
+                        busy_bit = self._motion_controller.is_moving()
+                            
+                        
+                            
+                        while busy_bit[1] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                        
                     
+                elif self.data_inc == len(matrix[0]):
+                    # SCAN END
+                    print("Writing to index", self.data_inc)
+
                     self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                     self.vna_thread.start()
                 
@@ -149,6 +202,8 @@ class Scanner():
                     difference = matrix[:,i] - matrix[:,i-1]
                     #x axis
                 
+                    print("Writing to index0", self.data_inc)
+
                     
                     if difference[0] > positive_thresh:
                         
@@ -160,6 +215,8 @@ class Scanner():
                         busy_bit = self._motion_controller.is_moving()
                         
                         self.data_inc = self.data_inc+1
+                        print("Writing to index1", self.data_inc)
+
                         self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                         self.vna_thread.start()
                         
@@ -178,6 +235,7 @@ class Scanner():
                         
                         
                         busy_bit = self._motion_controller.is_moving()
+                        print("Writing to index1", self.data_inc)
                         self.data_inc = self.data_inc+1
                         self.vna_thread = threading.Thread(target=self.vna_write_data,args=(all_s_params_data,))
                         self.vna_thread.start()
