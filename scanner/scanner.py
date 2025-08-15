@@ -16,6 +16,10 @@ import tkinter as tk
 from tkinter import ttk
 from alive_progress import alive_bar
 
+#### Issue that the 0 1 coord is not being written to the file, need to fix this later, 
+ 
+
+
 class Scanner():
     _motion_controller: MotionController
 
