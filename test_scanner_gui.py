@@ -25,7 +25,7 @@ from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
-
+import time     
 #endregion
 
 class MainWindow(QMainWindow):
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         self.back_btn_check = False
         self.scan_controller = ScanPattern()
         self.file_controller = ScanFile()
+        self.motion_config_counter = 0
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -150,10 +151,15 @@ class MainWindow(QMainWindow):
     
     
     
+    #####
+    #
+    #     
+    #####
     ## CONFIG SETTINGS M/P/SP/SF
     #region config settings
     def set_configuration_setting_file(self,connected):
-        print(f"Connected Status GUI: {connected}")
+        
+        self.file_display_label_text =[]
         if connected == True:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
@@ -161,14 +167,15 @@ class MainWindow(QMainWindow):
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                
+                    self.file_display_label_text.append(f"{setting.display_label}")
+                    
             for setting in self.file_controller.settings_post_connect:
                     
                     PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
                     plug = QPluginSetting(setting)
                     
                     self.ui.config_layout.addRow(setting.display_label, plug)
-                    
+                
             go_back_file = QPushButton("Back")
             go_back_file.clicked.connect(self.go_back_file)
             self.ui.config_layout.addRow(go_back_file)  
@@ -188,11 +195,12 @@ class MainWindow(QMainWindow):
                     
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
+        self.motion_connected = connected 
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
       
         
-        if connected:
+        if self.motion_connected:
            
             if self.pluginChosen_motion == False:
                
@@ -203,37 +211,58 @@ class MainWindow(QMainWindow):
                
                 from scanner.scanner import Scanner
                 self.scanner.scanner = Scanner(probe_controller=old_probe)
-
                 self.configure_motion(True)
-                connected = False
+                self.motion_connected = False
                 self.pluginChosen_motion = True
+                
     
 
             elif self.pluginChosen_motion == True:
+                self.settings_motion_list = []
                 for setting in controller.settings_pre_connect:
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
                     self.ui.config_layout.addRow(setting.display_label, plug)
+                   
                 disconnect_button = QPushButton("Disconnect")
                 disconnect_button.clicked.connect(disconnect_function)
                 self.ui.config_layout.addRow(disconnect_button)
+                
                 for setting in controller.settings_post_connect:
+                    
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-
+                i = 0
+                for setting in controller.settings_pre_connect:
+                    self.settings_motion_list.append( PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[i]))
+                    i = i+1
+                    
+               
+                # self.pos_mult = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[2])
+                # self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
+                
                 self.scan_testing()
+                
 
         else:
                 
                 for setting in controller.settings_pre_connect:
+                    
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+                   
+                
                 connect_button = QPushButton("Connect")
                 connect_button.clicked.connect(connect_function)
                 self.ui.config_layout.addRow(connect_button)
-                
+                i = 0
                 for setting in controller.settings_post_connect:
+                    
                     plug = QPluginSetting(setting)
                     plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)    
+                    self.ui.config_layout.addRow(setting.display_label, plug)
+                    
+                       
+                
+                    
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
         
@@ -251,14 +280,20 @@ class MainWindow(QMainWindow):
                 
                 old_motion = self.scanner.scanner.motion_controller
                 
-            
-                # re‐instantiate Scanner
+                self.motion_connected = True
+                
+                
                 from scanner.scanner import Scanner
+                
                 self.scanner.scanner = Scanner(motion_controller=old_motion)
-
+                
                 self.configure_probe(True)
                 connected = False
                 self.pluginChosen_probe = True
+                
+                if self.pluginChosen_motion == True:
+                    
+                    self.scanner.scanner.motion_controller.disconnect()
                 
         
             elif self.pluginChosen_probe == True:
@@ -287,7 +322,17 @@ class MainWindow(QMainWindow):
                     back_btn = QPushButton("Back")
                     back_btn.clicked.connect(self.back_function)
                     self.ui.config_layout.addRow(back_btn)
-
+                    
+                if self.pluginChosen_motion == True:
+                    
+                    self.scanner.scanner.motion_controller.connect() 
+                    print(f"{self.settings_motion_list[4]},{self.settings_motion_list[5]},{self.settings_motion_list[6]},{self.settings_motion_list[7]},{self.settings_motion_list[8]}")
+                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[4])
+                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[5])
+                    self.scanner.scanner.motion_controller.set_config(self.settings_motion_list[8],self.settings_motion_list[7],self.settings_motion_list[6])
+                    #In this case 8 7 6 correspont to amps idle percent and idle timeout respectively, need to refactor this to be more general for all possible plugins FIXME: 
+                       
+                
         else:
                 
                 for setting in controller.settings_pre_connect:
@@ -311,7 +356,7 @@ class MainWindow(QMainWindow):
                     
     def set_configuration_setting_pattern(self,connected) -> None:
         
-        print(f"Connected Status GUI: {connected}")
+        
         if connected == True:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
@@ -405,7 +450,7 @@ class MainWindow(QMainWindow):
     def get_file_dir(self):
 
         self.file_directory = fd.askdirectory()
-        print(f"Selected directory: {self.file_directory}")
+        
         
     
     ## Fix after 
@@ -450,9 +495,18 @@ class MainWindow(QMainWindow):
         self.step_size = self.scan_controller.float_step_size
         self.length = self.scan_controller.y_axis_len
         matrix = self.scan_controller.matrix 
-
+        self.metaData=[]
+        inc = 0
+        for setting in self.file_controller.settings_pre_connect:
+            plug = QPluginSetting(setting)
+            self.metaData.append(PluginSettingString.get_value_as_string(self.file_controller.settings_pre_connect[inc]))
+            inc = inc +1
+        
+        self.metaData_labels = self.file_display_label_text
+        
+            
         self.negative_step_size = np.negative(self.step_size)
-        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size))
+        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size,self.metaData,self.metaData_labels))
         self.scan_thread.start()
         
             
@@ -479,8 +533,6 @@ class MainWindow(QMainWindow):
     
     def save_btn(self):
         self.plotter.save()
-        
-    
 
     def back_function(self):
 

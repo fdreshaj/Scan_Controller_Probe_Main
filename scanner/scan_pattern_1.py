@@ -48,13 +48,19 @@ class ScanPattern(ScanPatternControllerPlugin):
         self.y_axis_len = float(self.y_axis_len)
         self.x_axis_len = float(self.x_axis_len)
         
-        self.points = self.y_axis_len / self.float_step_size # for now only doing matrices for square patterns x == y 
+        # self.points = self.y_axis_len / self.float_step_size 
+        self.x_points = self.x_axis_len / self.float_step_size +1  
         
+        self.y_points = self.y_axis_len / self.float_step_size +1
         #check divisibility 
+        self.points = self.x_points * self.y_points
         if self.points.is_integer():  
-            self.points = int(self.points)
-            self.matrix = self.create_pattern_matrix(self.points)
+            self.x_points = int(self.x_points)
+            self.y_points = int(self.y_points)
+            # self.matrix = self.create_pattern_matrix(self.points)
+            self.matrix = self.create_pattern_matrix_generalized(self.x_points,self.y_points)
             print(self.matrix)
+            
             if self.pattern_style == "XY" :
                 temp_row = self.matrix[0].copy()
                 self.matrix[0] = self.matrix[1]
@@ -96,6 +102,36 @@ class ScanPattern(ScanPatternControllerPlugin):
                 row2.extend(range(n, -1, -1))   
         return np.array([row1, row2])
     
+    def create_pattern_matrix_generalized(self,rows, cols):
+    
+        x_coords = np.tile(np.arange(cols), rows)
+
+        y_coords = []
+        
+        for r in range(rows):
+            if r % 2 == 0:
+                
+                y_coords.extend(np.arange(cols))
+            else:
+                
+                y_coords.extend(np.arange(cols - 1, -1, -1))
+
+      
+        final_x = []
+        final_y = []
+
+        for r in range(rows):
+            if r % 2 == 0:
+                
+                final_x.extend(np.arange(cols))
+            else:
+                
+                final_x.extend(np.arange(cols - 1, -1, -1))
+           
+            final_y.extend([r] * cols)
+
+        return np.array([final_y, final_x])
+    
     def rotate_points(self,matrix, theta_rad):
     
         R = np.array([
@@ -111,7 +147,6 @@ class ScanPattern(ScanPatternControllerPlugin):
     
     def time_estimate(self,points,step_size):
         acceleration = 10
-        points = (points+1)**2
         time_to_point = 2*np.sqrt(step_size/acceleration)
         total_time = points*(time_to_point)
         total_time = total_time / (60*60)

@@ -55,7 +55,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         self.add_setting_pre_connect(self.axis_settings)
         
-        self.add_setting_pre_connect(self.position_multiplier)
+        self.add_setting_pre_connect(self.position_multiplier) #2
         
         self.add_setting_pre_connect(self.microstep_multiplier)
         
@@ -67,7 +67,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         self.add_setting_pre_connect(self.idle_Percent)
         
-        self.add_setting_pre_connect(self.amps)
+        self.add_setting_pre_connect(self.amps) #8
         
         
         
@@ -125,6 +125,44 @@ class motion_controller_plugin(MotionControllerPlugin):
     def get_axis_units(self):
         pass
     
+    def set_config(self, amps,idle_p, idle_time):
+        
+        amp_float = float(amps)
+       
+        idle_p_int = int(idle_p)
+        
+        idle_t_float = float(idle_time)
+        
+        PluginSettingFloat.set_value_from_string(self.amps, f"{amp_float}")
+        PluginSettingFloat.set_value_from_string(self.idle_Percent, f"{idle_p_int}")
+        PluginSettingFloat.set_value_from_string(self.idle_timeout, f"{idle_t_float}")
+        
+        
+        config_insn_x = geckoInstructions.ConfigureInsn(line=0,axis=0,i=amp_float,p=idle_p_int,s=idle_t_float)
+        
+        config_insn_y = geckoInstructions.ConfigureInsn(line=0,axis=1,i=amp_float,p=idle_p_int,s=idle_t_float)
+        
+        binary_x = config_insn_x.get_binary()
+        binary_y = config_insn_y.get_binary()
+
+        high_first_pair_x = (binary_x >> 24) & 0xFF
+        high_last_pair_x = (binary_x >> 16) & 0xFF
+        low_first_pair_x = (binary_x >> 8) & 0xFF
+        low_last_pair_x = binary_x & 0xFF
+        
+        high_first_pair_y = (binary_y >> 24) & 0xFF
+        high_last_pair_y = (binary_y >> 16) & 0xFF
+        low_first_pair_y = (binary_y >> 8) & 0xFF
+        low_last_pair_y = binary_y & 0xFF
+        
+
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
+        
+        
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
+        
+        
+        
     def set_velocity(self, velocities=None):
         
        
@@ -165,7 +203,14 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def set_acceleration(self, accels=None):
         
-        acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        
+        
+        if accels == None:
+            acc=float(PluginSettingInteger.get_value_as_string(self.acceleration))
+        else:
+            acc = float(accels)
+            PluginSettingFloat.set_value_from_string(self.acceleration, f"{accels}")
+            
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
@@ -191,7 +236,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         low_first_pair_y = (binary_y >> 8) & 0xFF
         low_last_pair_y = binary_y & 0xFF
 
-        # swapping first and last due to little endian formatting
+        # swapping first and last h/l pairs due to little endian formatting
         
         self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
         
@@ -275,7 +320,10 @@ class motion_controller_plugin(MotionControllerPlugin):
         
                 
             
-    def is_moving(self):
+    def is_moving(self,axis=None):
+        
+        is_moving_x = True
+        is_moving_y = True
         
         query_long_command = bytes([0x08, 0x00])         
         
@@ -288,9 +336,20 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         busy_bits= [self.res_qlong[2],self.res_qlong[12]]
         
-        print(busy_bits)
+        # 224,225 are values set by manufacturer
         
-        return busy_bits
+        if busy_bits[0] == 224:
+            is_moving_x = False
+        else:
+            is_moving_x = True
+            
+        if busy_bits[1] == 225:
+            is_moving_y = False
+        else:
+            is_moving_y = True
+        
+        movement = [is_moving_x,is_moving_y]
+        return movement
         
          
     def get_endstop_minimums(self):
@@ -300,3 +359,6 @@ class motion_controller_plugin(MotionControllerPlugin):
     def get_endstop_maximums(self):
         pass
     
+   
+        
+        

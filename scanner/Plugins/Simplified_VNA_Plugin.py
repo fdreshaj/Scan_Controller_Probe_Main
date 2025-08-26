@@ -24,7 +24,7 @@ class VNA_Plugin(ProbePlugin):
         self.s_param_interest_data_query = []
         
         #self.address = PluginSettingString("Resource Address", "TCPIP0::169.254.250.89::inst0::INSTR") Testing, this should be default for this VNA
-        self.address = PluginSettingString("Resource Address", "TCPIP0::10.48.70.86::5001::SOCKET")
+        self.address = PluginSettingString("Resource Address", "TCPIP0::10.48.70.43::5001::SOCKET")
         self.timeout = PluginSettingInteger("Timeout (ms)", 20000)
 
         
@@ -61,8 +61,7 @@ class VNA_Plugin(ProbePlugin):
 
     def connect(self):
         vna_pick = PluginSettingString.get_value_as_string(self.vna_type)
-        # after i wrote this i remembered that this if statement is unecessary since the instantiated class handles it anyways 
-        # but i will remove unecesary code later on 
+   
         self.vna=InstrumentConnection(self.address.value, self.timeout.value).connect()
         
         
@@ -182,64 +181,8 @@ class VNA_Plugin(ProbePlugin):
             raw = self.vna.query(f":CALC1:PAR{idx}:DATA:SDAT?")
             tokens = self._strip_block(raw)
             vals = list(map(float, tokens))
-            results[name] = [complex(vals[i], vals[i+1])
-                            for i in range(0, len(vals), 2)]
+            results[name] = np.array([complex(vals[i], vals[i+1])
+                            for i in range(0, len(vals), 2)])
         return results
     
-    def scan_read_measurement_hdf5(self, scan_index=None, scan_location=None, hdf5_filename="scan_data.h5"):
-        
-        results = {}
-
-        for idx, name in enumerate(self.get_channel_names(), start=1):
-            raw = self.vna.query(f":CALC1:PAR{idx}:DATA:SDAT?")
-            tokens = self._strip_block(raw)
-            vals = list(map(float, tokens))
-            complex_data = [complex(vals[i], vals[i+1]) for i in range(0, len(vals), 2)]
-            results[name] = np.array(complex_data) 
-
-        
-        try:
-            freqs = np.array(self.get_xaxis_coords())
-        except Exception as e:
-            print(f"Error getting frequencies: {e}")
-            return
-
-        
-        data_to_save = {}
-        data_to_save["frequencies"] = freqs
-
-        for name, complex_array in results.items():
-            data_to_save[f"{name}_real"] = complex_array.real
-            data_to_save[f"{name}_imag"] = complex_array.imag
-
-      
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        group_name = f"scan_{timestamp}"
-        if scan_index is not None:
-            group_name = f"scan_index_{scan_index}_{timestamp}"
-        elif scan_location is not None:
-            
-            location_str = "_".join(map(str, scan_location))
-            group_name = f"scan_location_{location_str}_{timestamp}"
-
-
-        try:
-          
-            file_exists = os.path.exists(hdf5_filename)
-
-            with h5py.File(hdf5_filename, 'a') as f: 
-                scan_group = f.create_group(group_name)
-
-                for key, value in data_to_save.items():
-                    scan_group.create_dataset(key, data=value)
-
-              
-                if scan_index is not None:
-                    scan_group.attrs['scan_index'] = scan_index
-                if scan_location is not None:
-                    scan_group.attrs['scan_location'] = str(scan_location) 
-
-                print(f"Successfully saved data to HDF5 file: {hdf5_filename}, group: {group_name}")
-
-        except Exception as e:
-            print(f"Error saving to HDF5: {e}")
+    

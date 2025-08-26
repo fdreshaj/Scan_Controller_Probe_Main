@@ -53,7 +53,7 @@ class MotionControllerPlugin(ABC):
     def get_current_positions(self) -> tuple[float, ...]:
         pass
     @abstractmethod
-    def is_moving(self) -> bool:
+    def is_moving(self,axis) -> bool:
         pass
     @abstractmethod
     def get_endstop_minimums(self) -> tuple[float, ...]:
@@ -61,7 +61,9 @@ class MotionControllerPlugin(ABC):
     @abstractmethod
     def get_endstop_maximums(self) -> tuple[float, ...]:
         pass
-
+    @abstractmethod 
+    def set_config(self, amps,idle_p, idle_time):
+        pass
 
 class MotionController:
     _axis_labels: tuple[str, ...]
@@ -128,7 +130,9 @@ class MotionController:
         self.must_be_connected()
         self._driver.set_acceleration(axis_accels)
 
-
+    def set_config(self, amps,idle_p, idle_time):
+        self.must_be_connected()
+        self._driver.set_config(amps,idle_p, idle_time)
     #TODO:
     def move_absolute(self, axis_positions: dict[int, float]) -> None:
         self.must_be_connected()
@@ -141,7 +145,7 @@ class MotionController:
         #     if axis_positions[ind] < self._endstop_minimums[ind]:
         #         axis_positions[ind] = self._endstop_minimums[ind]
         ret_positions = self._driver.move_absolute(axis_positions)
-        print(f"Ret positions {axis_positions}")
+        
         if ret_positions is None:
             ret_positions = axis_positions
         for ind,val in axis_positions.items():
@@ -157,7 +161,7 @@ class MotionController:
                 axis_offsets[axis] += pos
         self.move_absolute(axis_offsets)
 
-    def is_moving(self) -> bool:
+    def is_moving(self,axis=None) -> bool:
         self.must_be_connected()
         return self._driver.is_moving()
     
