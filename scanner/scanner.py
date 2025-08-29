@@ -123,20 +123,17 @@ class Scanner():
                 start = time.time()
                 all_s_params_data = self.vna_sim()
                 
-                # The data writing block now uses data_inc.
+            
                 print("Writing to index", self.data_inc)
                 self.vna_thread = threading.Thread(target=self.vna_write_data, args=(all_s_params_data,))
                 self.vna_thread.start()
                 self.vna_thread.join()
 
-                # We increment data_inc AFTER we have written the data for the current coordinate.
                 self.data_inc += 1
                 
-                # Move only if not at the last point
                 if i < len(matrix[0]) - 1:
                     diff_Var = matrix[:, i+1] - matrix[:, i]
                     
-                    # Check for X-axis movement
                     if diff_Var[0] > positive_thresh:
                         self._motion_controller.move_absolute({0:step_size})
                         busy_bit = self._motion_controller.is_moving()
@@ -148,7 +145,6 @@ class Scanner():
                         while busy_bit[0] == True:
                             busy_bit = self._motion_controller.is_moving()
                         
-                    # Check for Y-axis movement
                     if diff_Var[1] > positive_thresh:
                         self._motion_controller.move_absolute({1:step_size})
                         busy_bit = self._motion_controller.is_moving()
