@@ -25,6 +25,7 @@ from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
+from scanner.cam_testing_2 import CameraApp as CameraApp
 import time     
 #endregion
 
@@ -192,7 +193,21 @@ class MainWindow(QMainWindow):
             finish_config = QPushButton("Finish Config")
             finish_config.clicked.connect(self.finish_config)
             self.ui.config_layout.addRow(finish_config)
-                    
+            
+            camera_pop_up = QPushButton("Camera Pop Up")
+            camera_pop_up.clicked.connect(self.camera_pop_up)
+            self.ui.config_layout.addRow(camera_pop_up)
+            
+            
+            
+    def camera_pop_up(self):
+        root = tk.Tk()
+    
+    
+        app = CameraApp(root)
+        
+        
+        root.mainloop()
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
         
         self.motion_connected = connected 
@@ -312,6 +327,8 @@ class MainWindow(QMainWindow):
                 plot_btn = QPushButton("Plot")
                 plot_btn.clicked.connect(self.plot_btn)   
                 self.ui.config_layout.addRow(plot_btn)
+                
+                
 
                 save_btn = QPushButton("Save Data")
                 save_btn.clicked.connect(self.save_btn)   
@@ -385,7 +402,8 @@ class MainWindow(QMainWindow):
             connect_button = QPushButton("Generate")
             connect_button.clicked.connect(self.connect_pat)
             self.ui.config_layout.addRow(connect_button)
-                     
+            
+            
     #endregion
     
     
@@ -488,7 +506,9 @@ class MainWindow(QMainWindow):
         
         plot_plugins = QPushButton("Import Plot Plugins")
         plot_plugins.clicked.connect(self.plot_plugins)
-        self.ui.plot_config_wid.addRow(plot_plugins)  
+        self.ui.plot_config_wid.addRow(plot_plugins)
+        
+        
         
     #region scan button func    
     def test_scan_bt(self):
