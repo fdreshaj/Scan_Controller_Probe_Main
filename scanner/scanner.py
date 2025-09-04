@@ -30,6 +30,7 @@ class Scanner():
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
        # self.plotter = plotter_system()
         self.output_filepath = "vna_data5.bin"
+        self.time_linearity_test = []
         
         if PluginSwitcher.plugin_name == "":
             
@@ -162,6 +163,7 @@ class Scanner():
             self._close_output_file()
             end_2 = time.time()
             print("Scan complete. Total time:", end_2 - self.start_data)
+            dset6 = self.HDF5FILE.create_dataset("/Coords/write_time_testing",data=self.time_linearity_test)
                 
                         
     def vna_sim(self):
@@ -197,7 +199,7 @@ class Scanner():
         
         self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:,self.data_inc],))
         self.motion_tracker_thread.start()
-        
+        self.time_linearity_test.append(end - start_data)
         
     def motion_tracker(self,vector):
         
