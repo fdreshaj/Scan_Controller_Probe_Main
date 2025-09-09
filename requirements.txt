@@ -110,8 +110,8 @@ frozendict @ file:///C:/b/abs_2alamqss6p/croot/frozendict_1713194885124/work
 frozenlist @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/frozenlist_1699557027827/work
 fsspec @ file:///C:/b/abs_02vh2bpxfo/croot/fsspec_1724855601370/work
 # Editable install with no version control (geckodrive==0.5.1)
--e c:\users\flatr\downloads\geckodrive-main\geckodrive-main
-GeckoMoped @ file:///C:/Users/flatr/Downloads/GeckoMoped-master/GeckoMoped-master
+#-e c:\users\flatr\downloads\geckodrive-main\geckodrive-main
+#GeckoMoped @ file:///C:/Users/flatr/Downloads/GeckoMoped-master/GeckoMoped-master
 gensim @ file:///C:/b/abs_efsh9stgvi/croot/gensim_1725376635600/work
 gitdb @ file:///tmp/build/80754af9/gitdb_1617117951232/work
 GitPython @ file:///C:/b/abs_2bkslnqz4i/croot/gitpython_1720455044865/work
