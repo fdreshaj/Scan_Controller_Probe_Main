@@ -1,6 +1,6 @@
 ## labview interface class for sd-may40 radar board
-import scanner.Plugins.fcwm_connection.radarControl as rc
-import scanner.Plugins.fcwm_connection.daqControl as dc
+import scanner.Plugins.fmcw_connection.radarControl as rc
+import scanner.Plugins.fmcw_connection.daqControl as dc
 import numpy as np
 import nidaqmx.system
 from nidaqmx.constants import (AcquisitionType, Edge, TriggerType)
