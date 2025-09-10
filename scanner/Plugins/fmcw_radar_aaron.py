@@ -6,12 +6,12 @@ from tkinter import messagebox
 import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
 import re
 import numpy as np
-import scanner.Plugins.fcwm_connection.TRA_240_097 as fcwm_connection   
+import scanner.Plugins.fmcw_connection.TRA_240_097 as fmcw_connection   
 
-class FCWM_Plugin(ProbePlugin):
+class fmcw_Plugin(ProbePlugin):
     def __init__(self):
         super().__init__()
-        self.fcwm = None
+        self.fmcw = None
         self.frequency_data_query = []
         self.s_param_interest_data_query = []
         
@@ -32,22 +32,22 @@ class FCWM_Plugin(ProbePlugin):
         
     def connect(self):
         args = [str(self.nFreqPoints.value), str(self.startFreqGHz.value), str(self.stopFreqGHz.value), str(self.sweepTime_ms.value)]
-        self.kwargs = dict(zip(self.fcwm.get_parameters_list(), args))
-        self.fcwm = fcwm_connection.TRA_240_097()
-        self.fcwm.initialize(self.kwargs)
-        self.selected_params = self.fcwm.get_channel_names(self.kwargs)
+        self.kwargs = dict(zip(self.fmcw.get_parameters_list(), args))
+        self.fmcw = fmcw_connection.TRA_240_097()
+        self.fmcw.initialize(self.kwargs)
+        self.selected_params = self.fmcw.get_channel_names(self.kwargs)
 
     
     def disconnect(self):
-        if self.fcwm:
-            self.fcwm.close(self.kwargs)
+        if self.fmcw:
+            self.fmcw.close(self.kwargs)
             
             
     
     def get_xaxis_coords(self):
         
         #raw = #raw freq data coords 
-        raw = self.fcwm.get_frequency_vector_GHz(self.kwargs)
+        raw = self.fmcw.get_frequency_vector_GHz(self.kwargs)
         print(raw)
         if raw.startswith("#"):
             hdr_digits = int(raw[1])           
@@ -86,7 +86,7 @@ class FCWM_Plugin(ProbePlugin):
         results = {}
         for idx, name in enumerate(self.get_channel_names(), start=1):
             #raw = s param data query
-            raw = self.fcwm.measure(self.kwargs)
+            raw = self.fmcw.measure(self.kwargs)
             tokens = self._strip_block(raw)
             vals = list(map(float, tokens))
             results[name] = np.array([complex(vals[i], vals[i+1])
