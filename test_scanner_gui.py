@@ -256,7 +256,7 @@ class MainWindow(QMainWindow):
                 # self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
                 
                 self.scan_testing()
-                
+                self.home_button()
 
         else:
                 
@@ -553,6 +553,11 @@ class MainWindow(QMainWindow):
     
     def save_btn(self):
         self.plotter.save()
+    
+    def home_button(self):
+        home_btn = QPushButton("Home All Axes")
+        home_btn.clicked.connect(self.scanner.scanner._motion_controller.home)
+        self.ui.config_layout.addRow(home_btn)
 
     def back_function(self):
 

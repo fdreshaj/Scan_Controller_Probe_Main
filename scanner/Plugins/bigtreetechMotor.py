@@ -1,3 +1,5 @@
+#Gcode motion controller plugin for BigTreeTech motor controllers using PyVISA
+
 from scanner.motion_controller import MotionControllerPlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 import serial
@@ -41,16 +43,16 @@ class motion_controller_plugin(MotionControllerPlugin):
         #     self.resource_name = None
         i=0
         for device in self.devices:
-            if device == "ASRL6::INSTR":
-                self.resource_name = self.devices[i]
-                self.driver = self.rm.open_resource(self.resource_name)
-                print(f"\nSuccessfully connected to: {self.resource_name}")
-            i = i+1
+            #if device == "ASRL6::INSTR":
+            self.resource_name = self.devices[i]
+            self.driver = self.rm.open_resource(self.resource_name)
+            print(f"\nSuccessfully connected to: {self.resource_name}")
+            #i = i+1
         # Set the timeout for read and write operations
         self.driver.timeout = self.timeout
         print(f"Communication timeout set to {self.timeout} ms.")
-        response = self.send_gcode_command("G28")
-        response = self.send_gcode_command("G91")
+        
+        response = self.send_gcode_command("G91") #Set to relative positioning
         
         
         
@@ -78,6 +80,22 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
 
     def move_absolute(self, move_pos: dict[int, float]) -> dict[int, float] | None:
+        # split_response = self.get_current_positions()
+        
+        # if self.response == 'ok':
+        #     print("response ok, need to retry to get actual position  ")
+        #     split_response = self.get_current_positions()
+            
+        # else:
+        #     print("got position")
+        
+       
+        # z = float(split_response[2][2:])
+        
+    
+        
+        
+        
         for key, val in move_pos.items():
             raw_value = val
             if key == 0:
@@ -86,10 +104,14 @@ class motion_controller_plugin(MotionControllerPlugin):
             elif key == 1:
                 
                 axis_num=1
-            else:
-                print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y'.")
                 
-                axis_num = 1
+            elif key == 2:
+                axis_num = 2
+                
+            else:
+                print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y' or 2 for 'z'.")
+                
+                return None
             break 
 
         busy_command = "M114"
@@ -104,9 +126,19 @@ class motion_controller_plugin(MotionControllerPlugin):
             move_string = f"X{raw_value}"
             move_command = f"G0 {move_string}"
             
-        else:
+        elif axis_num == 1:
             move_string = f"Y{raw_value}"
-            move_command = f"G0 {move_string}" 
+            move_command = f"G0 {move_string}"
+        elif axis_num == 2:
+            # if z - raw_value < 50:
+            #     print("Error: Z-axis move exceeds safe limit of 50 mm from current position.")
+            #     return None
+            # else:
+            move_string = f"Z{raw_value}"
+            move_command = f"G0 {move_string}"
+        else:
+            print("Invalid axis number. Please choose 0 for 'x', 1 for 'y', or 2 for 'z'.")
+            return None
 
         self.response = self.send_gcode_command(move_command)
         # busy_bit = self.send_gcode_command(busy_command)
@@ -114,12 +146,17 @@ class motion_controller_plugin(MotionControllerPlugin):
         #     busy_bit = self.send_gcode_command(busy_command)
         
         return self.response
-    def home(self, axes: list[int]) -> dict[int, float]:
-        pass
+    def home(self):
+        self.response = self.send_gcode_command("G28") #Home all axes
+        return self.response
 
-
-    def get_current_positions(self) -> tuple[float, ...]:
-        pass
+    def get_current_positions(self):
+        self.response = self.send_gcode_command("M114")
+        print(self.response)
+        
+        split_response = self.response.split()
+        print(split_response)
+        return split_response
  
     def is_moving(self,axis=None) -> bool:
 
@@ -135,6 +172,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
 
         return movement
+        
         
     def get_endstop_minimums(self) -> tuple[float, ...]:
         pass

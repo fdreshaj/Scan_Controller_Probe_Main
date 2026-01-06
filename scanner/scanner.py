@@ -123,8 +123,8 @@ class Scanner():
             for i in range(len(matrix[0])):
                 start = time.time()
                 all_s_params_data = self.vna_sim()
+                current_position = self._motion_controller.get_current_positions()
                 
-            
                 print("Writing to index", self.data_inc)
                 self.vna_thread = threading.Thread(target=self.vna_write_data, args=(all_s_params_data,))
                 self.vna_thread.start()
@@ -163,7 +163,7 @@ class Scanner():
             self._close_output_file()
             end_2 = time.time()
             print("Scan complete. Total time:", end_2 - self.start_data)
-            dset6 = self.HDF5FILE.create_dataset("/Coords/write_time_testing",data=self.time_linearity_test)
+            #dset6 = self.HDF5FILE.create_dataset("/Coords/write_time_testing",data=self.time_linearity_test)
                 
                         
     def vna_sim(self):

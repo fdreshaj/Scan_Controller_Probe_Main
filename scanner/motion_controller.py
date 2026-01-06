@@ -167,3 +167,8 @@ class MotionController:
     
     def get_current_positions(self) -> tuple[float, ...]:
         return self._driver.get_current_positions()
+
+    def home(self) -> None:
+        self.must_be_connected()
+        return self._driver.home()
+    

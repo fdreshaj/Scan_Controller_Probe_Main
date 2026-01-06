@@ -31,11 +31,14 @@ class fmcw_Plugin(ProbePlugin):
         
         
     def connect(self):
+        self.fmcw = fmcw_connection.TRA_240_097()
         args = [str(self.nFreqPoints.value), str(self.startFreqGHz.value), str(self.stopFreqGHz.value), str(self.sweepTime_ms.value)]
         self.kwargs = dict(zip(self.fmcw.get_parameters_list(), args))
-        self.fmcw = fmcw_connection.TRA_240_097()
+        
         self.fmcw.initialize(self.kwargs)
+        
         self.selected_params = self.fmcw.get_channel_names(self.kwargs)
+        print("Initiallized FMCW radar")
 
     
     def disconnect(self):
@@ -85,7 +88,7 @@ class fmcw_Plugin(ProbePlugin):
     def scan_read_measurement(self, scan_index=None, scan_location=None):
         results = {}
         for idx, name in enumerate(self.get_channel_names(), start=1):
-            #raw = s param data query
+           
             raw = self.fmcw.measure(self.kwargs)
             tokens = self._strip_block(raw)
             vals = list(map(float, tokens))

@@ -36,15 +36,26 @@ class motion_controller_plugin(MotionControllerPlugin):
     
     def move_absolute(self, move_pos: dict[int, float]) -> dict[int, float] | None:
         
-        pass
+        self.get_current_positions()
+        print(f"Moving to absolute position: {move_pos}")
         
         
-    def home(self, axes: list[int]) -> dict[int, float]:
-        pass
+    def home(self):
+        print("Homing all axes")
+        
 
 
     def get_current_positions(self) -> tuple[float, ...]:
-        pass
+        print("Getting current positions")
+        response = "X:10.00 Y:20.00 Z:30.00"
+        split_response = response.split()
+        x_pos = float(split_response[0][2:-1])
+        y_pos = float(split_response[1][2:-1])
+        z_pos = float(split_response[2][2:-1])
+        response_split = (x_pos, y_pos, z_pos)
+        print(response_split)
+        print(response_split[2])
+        return response_split
     
     def get_endstop_minimums(self) -> tuple[float, ...]:
         pass
