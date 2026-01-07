@@ -96,7 +96,7 @@ class Scanner():
     
     
     
-    def run_scan(self,matrix,length,step_size,negative_step_size,meta_data,meta_data_labels) -> None:
+    def run_scan(self, matrix, length, step_size, negative_step_size, meta_data, meta_data_labels) -> None:
         self.data_inc = 0
         self.matrix_copy = matrix
         negative_thresh = -0.01
@@ -107,18 +107,39 @@ class Scanner():
         self.frequencies = self._probe_controller.get_xaxis_coords()
         
         self.start_data = time.time()
-       
-        self.HDF5FILE = h5py.File(f"{meta_data[1]}.hdf5", mode="a") #meta 1 is filename
+    
+        self.HDF5FILE = h5py.File(f"{meta_data[1]}.hdf5", mode="a")  # meta 1 is filename
         
-        for i in range(0,len(meta_data)):
+        # Write metadata
+        for i in range(0, len(meta_data)):
             self.HDF5FILE.attrs[f'{meta_data_labels[i]}'] = f'{meta_data[i]}'
-        self.HDF5FILE.create_group(f"/Frequencies")
         self.HDF5FILE.attrs['Units'] = 'Hz'
-        self.HDF5FILE.create_group("/Point_Data")
-        dset2 = self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
-        dset3 = self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0,:])
-        dset4 = self.HDF5FILE.create_dataset("/Coords/y_data",data=self.matrix_copy[1,:])
-        dset5 = self.HDF5FILE.create_dataset("/Coords/z_data",data=np.zeros(len(matrix[0])))
+        self.HDF5FILE.attrs['wasUniform'] = 1  # Store as integer (HDF5 doesn't have native bool)
+        self.HDF5FILE.attrs['isComplex'] = 1  # Set based on your scan type
+        self.HDF5FILE.attrs['isComplex'] = True
+        self.HDF5FILE.attrs['numPoints'] = len(matrix[0])
+        self.HDF5FILE.attrs['numFrequencies'] = len(self.frequencies)
+        
+        # Create datasets for frequencies and coordinates
+        self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
+        self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0, :])
+        self.HDF5FILE.create_dataset("/Coords/y_data", data=self.matrix_copy[1, :])
+        self.HDF5FILE.create_dataset("/Coords/z_data", data=np.zeros(len(matrix[0])))
+        
+        # Get S-parameter names from probe controller
+        self.s_param_names = self._probe_controller.get_channel_names()
+        
+        # Pre-allocate arrays for bulk data storage
+        num_points = len(matrix[0])
+        num_freqs = len(self.frequencies)
+        
+        # Create datasets for each S-parameter dynamically
+        self.HDF5FILE.create_group("/Data")
+        for s_param_name in self.s_param_names:
+            self.HDF5FILE.create_dataset(f"/Data/{s_param_name}_real", (num_points, num_freqs), dtype='float64')
+            self.HDF5FILE.create_dataset(f"/Data/{s_param_name}_imag", (num_points, num_freqs), dtype='float64')
+            print(f"Created datasets for {s_param_name}")
+        
         with alive_bar(len(matrix[0])) as bar:
             for i in range(len(matrix[0])):
                 start = time.time()
@@ -126,40 +147,40 @@ class Scanner():
                 current_position = self._motion_controller.get_current_positions()
                 
                 print("Writing to index", self.data_inc)
-                self.vna_thread = threading.Thread(target=self.vna_write_data, args=(all_s_params_data,))
+                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
                 self.vna_thread.start()
-                self.vna_thread.join()
-
+                self.vna_thread.join()                
                 self.data_inc += 1
                 
                 if i < len(matrix[0]) - 1:
                     diff_Var = matrix[:, i+1] - matrix[:, i]
                     
                     if diff_Var[0] > positive_thresh:
-                        self._motion_controller.move_absolute({0:step_size})
+                        self._motion_controller.move_absolute({0: step_size})
                         busy_bit = self._motion_controller.is_moving()
                         while busy_bit[0] == True:
                             busy_bit = self._motion_controller.is_moving()
                     elif diff_Var[0] < negative_thresh:
-                        self._motion_controller.move_absolute({0:negative_step_size})
+                        self._motion_controller.move_absolute({0: negative_step_size})
                         busy_bit = self._motion_controller.is_moving()
                         while busy_bit[0] == True:
                             busy_bit = self._motion_controller.is_moving()
                         
                     if diff_Var[1] > positive_thresh:
-                        self._motion_controller.move_absolute({1:step_size})
+                        self._motion_controller.move_absolute({1: step_size})
                         busy_bit = self._motion_controller.is_moving()
                         while busy_bit[1] == True:
                             busy_bit = self._motion_controller.is_moving()
                     elif diff_Var[1] < negative_thresh:
-                        self._motion_controller.move_absolute({1:negative_step_size})
+                        self._motion_controller.move_absolute({1: negative_step_size})
                         busy_bit = self._motion_controller.is_moving()
                         while busy_bit[1] == True:
                             busy_bit = self._motion_controller.is_moving()
                 
                 end = time.time()
                 bar()
-                
+            
+            self.HDF5FILE.close()
             self._close_output_file()
             end_2 = time.time()
             print("Scan complete. Total time:", end_2 - self.start_data)
@@ -200,10 +221,25 @@ class Scanner():
         self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:,self.data_inc],))
         self.motion_tracker_thread.start()
         self.time_linearity_test.append(end - start_data)
+    
+    def vna_write_data_bulk(self, all_s_params_data):
         
-    def motion_tracker(self,vector):
+        start_data = time.time()
         
-       
+        for s_param_name, s_param_values in all_s_params_data.items():
+            # Write to bulk arrays (much faster than creating individual groups)
+            self.HDF5FILE[f"/Data/{s_param_name}_real"][self.data_inc, :] = np.real(s_param_values)
+            self.HDF5FILE[f"/Data/{s_param_name}_imag"][self.data_inc, :] = np.imag(s_param_values)
+            print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}")
+        
+        end = time.time()
+        
+        self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:, self.data_inc],))
+        self.motion_tracker_thread.start()
+        self.time_linearity_test.append(end - start_data)
+    
+    
+    def motion_tracker(self,vector):   
         self.percentage = self.data_inc/len(self.matrix_copy[0]) *100
         
         
