@@ -32,22 +32,22 @@ class motion_controller_plugin(MotionControllerPlugin):
         # print("PyVISA ResourceManager initialized.")
         # devices = self.rm.list_resources()
 
-        # if devices:
-        #     print("Found the following VISA devices:")
-        #     for device in devices:
-        #         print(f"- {device}")
-        #     self.resource_name = devices[0] 
-        #     print(f"Selected device: {self.resource_name}")
-        # else:
-        #     print("No VISA devices found.")
-        #     self.resource_name = None
-        i=0
-        for device in self.devices:
-            #if device == "ASRL6::INSTR":
-            self.resource_name = self.devices[i]
-            self.driver = self.rm.open_resource(self.resource_name)
-            print(f"\nSuccessfully connected to: {self.resource_name}")
-            #i = i+1
+        if self.devices:
+            print("Found the following VISA devices:")
+            for device in self.devices:
+                print(f"- {device}")
+            # self.resource_name = self.devices[2] 
+            # print(f"Selected device: {self.resource_name}")
+        else:
+            print("No VISA devices found.")
+            self.resource_name = None
+        # i=0
+        # for device in self.devices:
+        #     if device == "ASRL3::INSTR":
+        self.resource_name = self.devices[2]
+        self.driver = self.rm.open_resource(self.resource_name)
+        print(f"\nSuccessfully connected to: {self.resource_name}")
+        # i = i+1
         # Set the timeout for read and write operations
         self.driver.timeout = self.timeout
         print(f"Communication timeout set to {self.timeout} ms.")
@@ -92,7 +92,7 @@ class motion_controller_plugin(MotionControllerPlugin):
        
         # z = float(split_response[2][2:])
         
-    
+
         
         
         
@@ -144,31 +144,37 @@ class motion_controller_plugin(MotionControllerPlugin):
         # busy_bit = self.send_gcode_command(busy_command)
         # while busy_bit != 'ok':
         #     busy_bit = self.send_gcode_command(busy_command)
-        
-        return self.response
-    def home(self):
-        self.response = self.send_gcode_command("G28") #Home all axes
-        return self.response
+        movement = self.is_moving()
+        print(movement)
+        while movement[0] == True:
+            movement= self.is_moving()
+            print(movement)
+    
 
     def get_current_positions(self):
         self.response = self.send_gcode_command("M114")
         print(self.response)
+        while self.response == None:
+            self.response = self.send_gcode_command("M114")
+            print(self.response)
         
         split_response = self.response.split()
+        
         print(split_response)
         return split_response
  
     def is_moving(self,axis=None) -> bool:
 
-        movement=[False,False]
-        res_x = self.move_absolute({0:0})
+        movement=[True,True]
+        res = self.send_gcode_command("M400") 
+        print("/////")
         
-        res_y = self.move_absolute({1:0})
         
-        if res_x != 'ok':
-            movement[0] = True
-        if res_y != 'ok':
-            movement[1] = True
+        if res == 'ok':
+        
+            movement[0] = False
+            movement[1] = False
+        
         
 
         return movement
@@ -200,12 +206,20 @@ class motion_controller_plugin(MotionControllerPlugin):
           
             q_response = self.driver.query(command)
             print(f"Received response: '{q_response.strip()}'")
+            while q_response.strip() != 'ok':
+                q_response = self.driver.read()
+                print(f"{q_response.strip()}")
+
             return q_response.strip()
+            
 
         except pyvisa.errors.VisaIOError as e:
             print(f"VISA I/O Error during command '{command.strip()}': {e}")
         except Exception as e:
             print(f"An unexpected error occurred while sending command: {e}")
         return None
+    
+
+
     def home(self):
         response = self.send_gcode_command("G28")
