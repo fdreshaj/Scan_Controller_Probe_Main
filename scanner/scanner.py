@@ -119,11 +119,11 @@ class Scanner():
         self.HDF5FILE.attrs['isComplex'] = True
         self.HDF5FILE.attrs['numPoints'] = len(matrix[0])
         self.HDF5FILE.attrs['numFrequencies'] = len(self.frequencies)
-        
+        freqs_ghz = np.asarray(self.frequencies, dtype=float) / 1e9
         # Create datasets for frequencies and coordinates
-        self.HDF5FILE.create_dataset("/Frequencies/Range", data=self.frequencies)
-        self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0, :])
-        self.HDF5FILE.create_dataset("/Coords/y_data", data=self.matrix_copy[1, :])
+        self.HDF5FILE.create_dataset("/Frequencies/Range", data=freqs_ghz)  # Store frequencies in GHz
+        self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0, :]*step_size)
+        self.HDF5FILE.create_dataset("/Coords/y_data", data=self.matrix_copy[1, :]*step_size)
         self.HDF5FILE.create_dataset("/Coords/z_data", data=np.zeros(len(matrix[0])))
         
         # Get S-parameter names from probe controller

@@ -217,3 +217,4 @@ test_9.hdf5
 *.hdf5
 *.png
 scanner/progressBar.py
+scanner/h5py_test_test.py
