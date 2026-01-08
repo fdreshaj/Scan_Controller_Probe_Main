@@ -18,6 +18,10 @@ import gui.select_plot_hide as select_plot_hide
 import raster_pattern_generator as scan_pattern_gen
 import numpy as np
 import matplotlib
+import qdarktheme
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QToolButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout
 matplotlib.use('QtAgg') 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas 
 from matplotlib.figure import Figure
@@ -27,6 +31,9 @@ from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
 from scanner.cam_testing_2 import CameraApp as CameraApp
 import time     
+from PySide6.QtWidgets import QToolButton, QDialog, QVBoxLayout, QLabel
+from scanner.Signal_Scope import SignalScope 
+
 #endregion
 
 class MainWindow(QMainWindow):
@@ -47,6 +54,11 @@ class MainWindow(QMainWindow):
         self.scan_controller = ScanPattern()
         self.file_controller = ScanFile()
         self.motion_config_counter = 0
+        self.current_theme = "light"
+        self.setup_theme_toggle()
+        self.setup_settings_button()
+        self.setup_top_controls()
+        app.setStyleSheet(qdarktheme.load_stylesheet("light"))
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -582,10 +594,96 @@ class MainWindow(QMainWindow):
     def back_function_motion(self):
 
         pass
+    
+    def setup_theme_toggle(self):
+        self.theme_btn = QToolButton(self)
+        self.theme_btn.setCheckable(True)
+        self.theme_btn.setChecked(True) 
+        self.theme_btn.setToolTip("Toggle light / dark mode")
+
         
+        self.theme_btn.setText("☀️")
+        
+        self.theme_btn.clicked.connect(self.toggle_theme)
+
+        # Put it top-left in the title bar area
+        #self.theme_btn.raise_()
+        #self.ui.main_layout.addWidget(self.theme_btn, 0, 1)
+
        
+    def toggle_theme(self):
+        if self.current_theme == "dark":
+            app.setStyleSheet(qdarktheme.load_stylesheet("light"))
+            self.current_theme = "light"
+            self.theme_btn.setText("☀️")
+        else:
+            app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
+            self.current_theme = "dark"
+            self.theme_btn.setText("🌙")
+
+    def setup_settings_button(self):
+        self.settings_btn = QToolButton(self)
+        self.settings_btn.setText("⚙️")
+        self.settings_btn.setToolTip("Settings")
+        self.settings_btn.setFixedSize(28, 28)
+        
+        self.settings_btn.setStyleSheet("""
+            QToolButton {
+                border: none;
+                font-size: 14px;
+            }
+            QToolButton:hover {
+                background-color: rgba(128,128,128,40);
+                border-radius: 4px;
+            }
+        """)
+
+        self.settings_btn.clicked.connect(self.open_settings)
+        #self.settings_btn.raise_()
+
+        # Place next to theme toggle
+        #self.ui.main_layout.addWidget(self.settings_btn, 0, 0)
+        
+    def open_settings(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Settings")
+        dlg.setModal(True)
+
+        layout = QVBoxLayout(dlg)
+        open_scope_btn = QPushButton("Open Signal Scope")
+        open_scope_btn.clicked.connect(self.open_signal_scope)
+        layout.addWidget(open_scope_btn)
+
+        dlg.resize(300, 200)
+        dlg.exec()
     
-    
+    def open_signal_scope(self):
+        if not hasattr(self, "SignalScope"):
+            self.signal_scope = SignalScope()
+
+        self.signal_scope.show()
+        self.signal_scope.raise_()
+        self.signal_scope.activateWindow()
+
+    def setup_top_controls(self):
+        
+        
+
+        self.top_controls = QWidget(self)
+        layout = QHBoxLayout(self.top_controls)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(self.settings_btn)
+        layout.addWidget(self.theme_btn)
+        
+
+        self.top_controls.adjustSize()
+        self.top_controls.raise_()
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        margin = 8
+        self.top_controls.move(margin, margin)
+
     def setup_plotting_canvas(self) -> None:
         main_layout = self.ui.main_layout 
        
