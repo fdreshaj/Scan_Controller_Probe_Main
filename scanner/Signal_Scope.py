@@ -118,6 +118,17 @@ class SignalScope(QWidget):
         self.error_time = None
         self.error_lane = None   # e.g. "VNA", "Motor", "File I/O", "Scan Pattern"
 
+        # Real-time state tracking for each lane
+        self.lane_states = {
+            "VNA": False,           # False = idle/LOW, True = active/HIGH
+            "Motor": False,
+            "File I/O": False,
+            "Scan Pattern": False
+        }
+
+        # History of state changes: list of (timestamp, lane_name, new_state)
+        self.state_history = []
+
         self.setFocusPolicy(Qt.StrongFocus)
 
 
@@ -417,9 +428,15 @@ class SignalScope(QWidget):
     # Drawing routines
     # -------------------------------
     def _draw_waves(self, t):
+        """Draw waveforms based on actual operation timing from state history."""
         amplitude = LANE_HEIGHT * 0.25
-        wavelength = 80.0
-        speed = 100.0
+
+        # Calculate visible time range based on current scroll position
+        # We draw from right to left, with current time at 85% of screen width
+        time_span = VIEW_WIDTH / PIXELS_PER_SEC  # Total seconds visible on screen
+        current_time_x = VIEW_WIDTH * 0.85  # Current time position on screen
+        t_end = t  # Current time
+        t_start = t - (time_span * 0.85)  # Earlier time at left edge
 
         for i, (name, color) in enumerate(LANES):
             y0 = i * LANE_HEIGHT + LANE_HEIGHT // 2
@@ -430,35 +447,64 @@ class SignalScope(QWidget):
                 pen.setWidthF(10)          # emphasized
             else:
                 pen.setWidthF(5)
-            
-            pen.setCapStyle(Qt.FlatCap)
-            lane_color = self._lane_color(name)
-
-           
-
 
             pen.setCapStyle(Qt.FlatCap)
+
             if self.error_frozen and not self._lane_is_error(name):
                 c = pen.color()
                 c.setAlpha(80)   # dim
                 pen.setColor(c)
 
-
             path = QPainterPath()
-            path.moveTo(0, y0)
 
-            prev_level = None
-            phase_offset = LANE_PHASES[name] * wavelength
+            # Build state changes for this lane in visible time range
+            lane_transitions = []
+            for timestamp, lane_name, new_state in self.state_history:
+                if lane_name == name and timestamp >= t_start - 1.0:  # Include a bit before for context
+                    lane_transitions.append((timestamp, new_state))
 
-            for x in range(0, VIEW_WIDTH, 4):
-                phase = ((x + phase_offset + t * speed) % wavelength) / wavelength
-                level = amplitude if phase < 0.5 else -amplitude
+            # Determine starting state
+            if lane_transitions:
+                # Work backwards to find state at t_start
+                current_state = False
+                for timestamp, new_state in lane_transitions:
+                    if timestamp <= t_start:
+                        current_state = new_state
+                    else:
+                        break
+            else:
+                current_state = self.lane_states[name]  # Use current state if no history
 
-                if prev_level is not None and level != prev_level:
-                    path.lineTo(x, y0 + prev_level)
+            # Draw from left edge
+            x_start = 0
+            level = amplitude if current_state else -amplitude
+            path.moveTo(x_start, y0 + level)
 
-                path.lineTo(x, y0 + level)
-                prev_level = level
+            # Draw transitions
+            for timestamp, new_state in lane_transitions:
+                if timestamp > t_end:
+                    break
+
+                # Convert timestamp to x position
+                time_delta = timestamp - t
+                x = current_time_x + (time_delta * PIXELS_PER_SEC)
+
+                if x < 0:
+                    continue
+                if x > VIEW_WIDTH:
+                    break
+
+                # Draw vertical transition at this x position
+                old_level = level
+                new_level = amplitude if new_state else -amplitude
+
+                if old_level != new_level:
+                    path.lineTo(x, y0 + old_level)  # Horizontal to transition point
+                    path.lineTo(x, y0 + new_level)  # Vertical transition
+                    level = new_level
+
+            # Draw to right edge
+            path.lineTo(VIEW_WIDTH, y0 + level)
 
             self.scene.addPath(path, pen)
 
@@ -656,4 +702,39 @@ class SignalScope(QWidget):
 
     def _lane_is_error(self, lane_name):
         return self.error_frozen and self.error_lane == lane_name
+
+    # -------------------------------
+    # Real-time state control methods
+    # -------------------------------
+    def set_lane_active(self, lane_name: str):
+        """Set a lane to active/HIGH state (operation started)."""
+        if lane_name not in self.lane_states:
+            return
+
+        if not self.lane_states[lane_name]:  # Only record if state changes
+            current_time = self._current_scope_time()
+            self.lane_states[lane_name] = True
+            self.state_history.append((current_time, lane_name, True))
+
+    def set_lane_idle(self, lane_name: str):
+        """Set a lane to idle/LOW state (operation completed)."""
+        if lane_name not in self.lane_states:
+            return
+
+        if self.lane_states[lane_name]:  # Only record if state changes
+            current_time = self._current_scope_time()
+            self.lane_states[lane_name] = False
+            self.state_history.append((current_time, lane_name, False))
+
+    def get_lane_state_at_time(self, lane_name: str, t: float) -> bool:
+        """Get the state of a lane at a specific time based on history."""
+        state = False  # Default to idle
+
+        for timestamp, name, new_state in self.state_history:
+            if name == lane_name and timestamp <= t:
+                state = new_state
+            elif timestamp > t:
+                break
+
+        return state
 

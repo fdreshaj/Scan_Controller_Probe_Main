@@ -147,8 +147,17 @@ class Scanner():
 
                 # VNA measurement with error handling
                 try:
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_active("VNA")
+
                     all_s_params_data = self.vna_sim()
+
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_idle("VNA")
                 except Exception as e:
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_idle("VNA")
+
                     error_msg = f"VNA measurement failed: {str(e)}"
                     print(error_msg)
                     if self.signal_scope:
@@ -168,10 +177,19 @@ class Scanner():
                 # File I/O with error handling
                 print("Writing to index", self.data_inc)
                 try:
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_active("File I/O")
+
                     self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
                     self.vna_thread.start()
                     self.vna_thread.join()
+
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_idle("File I/O")
                 except Exception as e:
+                    if self.signal_scope:
+                        self.signal_scope.set_lane_idle("File I/O")
+
                     error_msg = f"File write failed: {str(e)}"
                     print(error_msg)
                     if self.signal_scope:
@@ -193,6 +211,9 @@ class Scanner():
                     diff_Var = matrix[:, i+1] - matrix[:, i]
 
                     try:
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_active("Motor")
+
                         if diff_Var[0] > positive_thresh:
                             self._motion_controller.move_absolute({0: step_size})
                             busy_bit = self._motion_controller.is_moving()
@@ -224,7 +245,13 @@ class Scanner():
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
+
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_idle("Motor")
                     except Exception as e:
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_idle("Motor")
+
                         error_msg = f"Motor movement failed: {str(e)}"
                         print(error_msg)
                         if self.signal_scope:
