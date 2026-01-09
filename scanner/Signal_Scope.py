@@ -68,17 +68,18 @@ class ScopeView(QGraphicsView):
     def drawForeground(self, painter: QPainter, rect):
         painter.save()
         painter.resetTransform()
-        
+
         #t = time.perf_counter() - self.scope.start_time - self.scope.time_offset
         t = self.scope._current_scope_time()
 
 
         self.scope._draw_lane_labels(painter)
+        self.scope._draw_time_axes(painter, t)
         self.scope._draw_marker(painter)
         self.scope._draw_time_readout(painter, t)
         self.scope._draw_error_banner(painter)
-        self.scope._draw_delta_phase_table(painter, t)
-        
+        self.scope._draw_delta_time_table(painter, t)
+
         painter.restore()
 
     def mousePressEvent(self, event):
@@ -319,23 +320,50 @@ class SignalScope(QWidget):
 
         painter.drawLine(x, 0, x, height)
         
-    def _compute_delta_phases(self, t):
+    def _compute_delta_times(self, t):
+        """Compute time deltas between lane transitions relative to VNA."""
         ref = "VNA"
-        ref_phase = self._lane_phase_at_marker(ref, t)
+        t_marker = self._time_at_marker(t)
+
+        # Find the most recent HIGH transition for each lane at marker time
+        ref_time = self._find_last_rising_edge(ref, t_marker)
 
         deltas = {}
 
         for name, _ in LANES:
-            phase = self._lane_phase_at_marker(name, t)
-            delta = (phase - ref_phase) * 360.0
+            lane_time = self._find_last_rising_edge(name, t_marker)
+
+            if ref_time is not None and lane_time is not None:
+                delta = (lane_time - ref_time) * 1000.0  # Convert to milliseconds
+            else:
+                delta = 0.0
+
             deltas[name] = delta
 
         return deltas
-    def _draw_delta_phase_table(self, painter: QPainter, t):
+
+    def _find_last_rising_edge(self, lane_name: str, t_marker: float):
+        """Find the timestamp of the most recent rising edge (LOW→HIGH) before t_marker."""
+        last_rising = None
+
+        for i, (timestamp, name, new_state) in enumerate(self.state_history):
+            if name != lane_name:
+                continue
+
+            if timestamp > t_marker:
+                break
+
+            # Check if this is a rising edge (transition to True/HIGH)
+            if new_state == True:
+                last_rising = timestamp
+
+        return last_rising
+
+    def _draw_delta_time_table(self, painter: QPainter, t):
         if not self.marker_enabled or self.marker_x is None:
             return
 
-        deltas = self._compute_delta_phases(t)
+        deltas = self._compute_delta_times(t)
 
         painter.setFont(self._label_font())
         painter.setPen(self._label_pen())
@@ -344,21 +372,14 @@ class SignalScope(QWidget):
         y0 = 6           # top margin
         row_h = 16
 
-        painter.drawText(x0, y0 + row_h, "ΔPhase (deg) wrt VNA")
+        painter.drawText(x0, y0 + row_h, "ΔTime (ms) wrt VNA")
 
         for i, (name, _) in enumerate(LANES):
             if name == "VNA":
                 continue
 
-            text = f"{name:12s}: {deltas[name]:6.1f}°"
+            text = f"{name:12s}: {deltas[name]:+7.2f} ms"
             painter.drawText(x0, y0 + row_h * (i + 2), text)
-
-    def _lane_phase_at_marker(self, lane_name, t):
-        phase_offset = LANE_PHASES[lane_name] * WAVE_WAVELENGTH
-        x = self.marker_x
-
-        phase = ((x + phase_offset + t * WAVE_SPEED) % WAVE_WAVELENGTH) / WAVE_WAVELENGTH
-        return phase
 
     def _time_at_marker(self, t_now):
         """
@@ -590,6 +611,53 @@ class SignalScope(QWidget):
         font.setPointSize(10)
         font.setBold(True)
         return font
+    def _draw_time_axes(self, painter: QPainter, t):
+        """Draw time axis with tick marks on each lane."""
+        time_span = VIEW_WIDTH / PIXELS_PER_SEC
+        current_time_x = VIEW_WIDTH * 0.85
+        t_end = t
+        t_start = t - (time_span * 0.85)
+
+        # Determine tick spacing based on zoom level
+        tick_interval = 0.1  # 100ms ticks by default
+        if time_span > 10:
+            tick_interval = 1.0  # 1 second ticks for zoomed out view
+        elif time_span < 2:
+            tick_interval = 0.05  # 50ms ticks for zoomed in view
+
+        # Draw ticks for each lane
+        for i, (name, _) in enumerate(LANES):
+            y_baseline = i * LANE_HEIGHT + LANE_HEIGHT // 2
+
+            # Determine tick times
+            first_tick = (int(t_start / tick_interval) + 1) * tick_interval
+            tick_time = first_tick
+
+            pen = QPen(self._label_pen())
+            pen.setWidthF(1.0)
+            painter.setPen(pen)
+
+            small_font = QFont("Segoe UI", 7)
+            painter.setFont(small_font)
+
+            while tick_time <= t_end:
+                # Convert time to x position
+                time_delta = tick_time - t
+                x = current_time_x + (time_delta * PIXELS_PER_SEC)
+
+                if 0 <= x <= VIEW_WIDTH:
+                    # Draw tick mark
+                    tick_length = 8
+                    painter.drawLine(int(x), y_baseline - tick_length, int(x), y_baseline + tick_length)
+
+                    # Draw time label (every major tick)
+                    if abs(tick_time % (tick_interval * 5)) < 0.001:  # Major tick every 5 intervals
+                        time_ms = tick_time * 1000.0
+                        label = f"{time_ms:.0f}ms"
+                        painter.drawText(int(x) + 2, y_baseline - 12, label)
+
+                tick_time += tick_interval
+
     def _draw_lane_labels(self, painter: QPainter):
         painter.setPen(self._label_pen())
         painter.setFont(self._label_font())
