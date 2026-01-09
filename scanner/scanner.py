@@ -24,13 +24,14 @@ class Scanner():
     _motion_controller: MotionController
 
     _probe_controller: ProbeController
-    
-    
-    
-    def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None) -> None:
+
+
+
+    def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None, signal_scope=None) -> None:
        # self.plotter = plotter_system()
         self.output_filepath = "vna_data5.bin"
         self.time_linearity_test = []
+        self.signal_scope = signal_scope
         
         if PluginSwitcher.plugin_name == "":
             
@@ -143,49 +144,102 @@ class Scanner():
         with alive_bar(len(matrix[0])) as bar:
             for i in range(len(matrix[0])):
                 start = time.time()
-                all_s_params_data = self.vna_sim()
+
+                # VNA measurement with error handling
+                try:
+                    all_s_params_data = self.vna_sim()
+                except Exception as e:
+                    error_msg = f"VNA measurement failed: {str(e)}"
+                    print(error_msg)
+                    if self.signal_scope:
+                        self.signal_scope.freeze_on_error(
+                            error_msg,
+                            "VNA",
+                            {
+                                "point_index": i,
+                                "position": matrix[:, i].tolist(),
+                                "exception_type": type(e).__name__
+                            }
+                        )
+                    break
+
                 current_position = self._motion_controller.get_current_positions()
-                
+
+                # File I/O with error handling
                 print("Writing to index", self.data_inc)
-                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                self.vna_thread.start()
-                self.vna_thread.join()                
+                try:
+                    self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                    self.vna_thread.start()
+                    self.vna_thread.join()
+                except Exception as e:
+                    error_msg = f"File write failed: {str(e)}"
+                    print(error_msg)
+                    if self.signal_scope:
+                        self.signal_scope.freeze_on_error(
+                            error_msg,
+                            "File I/O",
+                            {
+                                "point_index": i,
+                                "data_inc": self.data_inc,
+                                "exception_type": type(e).__name__
+                            }
+                        )
+                    break
+
                 self.data_inc += 1
-                
+
+                # Motor movement with error handling
                 if i < len(matrix[0]) - 1:
                     diff_Var = matrix[:, i+1] - matrix[:, i]
-                    
-                    if diff_Var[0] > positive_thresh:
-                        self._motion_controller.move_absolute({0: step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[0] == True:
+
+                    try:
+                        if diff_Var[0] > positive_thresh:
+                            self._motion_controller.move_absolute({0: step_size})
                             busy_bit = self._motion_controller.is_moving()
-                    elif diff_Var[0] < negative_thresh:
-                        self._motion_controller.move_absolute({0: negative_step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[0] == True:
+                            while busy_bit[0] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[0] < negative_thresh:
+                            self._motion_controller.move_absolute({0: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
-                        
-                    if diff_Var[1] > positive_thresh:
-                        self._motion_controller.move_absolute({1: step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[1] == True:
+                            while busy_bit[0] == True:
+                                busy_bit = self._motion_controller.is_moving()
+
+                        if diff_Var[1] > positive_thresh:
+                            self._motion_controller.move_absolute({1: step_size})
                             busy_bit = self._motion_controller.is_moving()
-                    elif diff_Var[1] < negative_thresh:
-                        self._motion_controller.move_absolute({1: negative_step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[1] == True:
+                            while busy_bit[1] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[1] < negative_thresh:
+                            self._motion_controller.move_absolute({1: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
-                    if diff_Var[2] > positive_thresh:
-                        self._motion_controller.move_absolute({2: step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[2] == True:
+                            while busy_bit[1] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        if diff_Var[2] > positive_thresh:
+                            self._motion_controller.move_absolute({2: step_size})
                             busy_bit = self._motion_controller.is_moving()
-                    elif diff_Var[2] < negative_thresh:
-                        self._motion_controller.move_absolute({2: negative_step_size})
-                        busy_bit = self._motion_controller.is_moving()
-                        while busy_bit[2] == True:
+                            while busy_bit[2] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[2] < negative_thresh:
+                            self._motion_controller.move_absolute({2: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[2] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                    except Exception as e:
+                        error_msg = f"Motor movement failed: {str(e)}"
+                        print(error_msg)
+                        if self.signal_scope:
+                            self.signal_scope.freeze_on_error(
+                                error_msg,
+                                "Motor",
+                                {
+                                    "point_index": i,
+                                    "current_position": matrix[:, i].tolist(),
+                                    "target_position": matrix[:, i+1].tolist(),
+                                    "exception_type": type(e).__name__
+                                }
+                            )
+                        break
+
                 end = time.time()
                 bar()
             

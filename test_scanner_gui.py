@@ -48,7 +48,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.scanner = ScannerQt()
+
+        # Initialize Signal Scope (hidden by default)
+        self.signal_scope = SignalScope()
+
+        self.scanner = ScannerQt(signal_scope=self.signal_scope)
         self.plotter = plotter_system()
         self.back_btn_check = False
         self.scan_controller = ScanPattern()
@@ -235,9 +239,9 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.removeRow(i)
             
                 old_probe = self.scanner.scanner.probe_controller
-               
+
                 from scanner.scanner import Scanner
-                self.scanner.scanner = Scanner(probe_controller=old_probe)
+                self.scanner.scanner = Scanner(probe_controller=old_probe, signal_scope=self.signal_scope)
                 self.configure_motion(True)
                 self.motion_connected = False
                 self.pluginChosen_motion = True
@@ -306,14 +310,14 @@ class MainWindow(QMainWindow):
                     
                 
                 old_motion = self.scanner.scanner.motion_controller
-                
+
                 self.motion_connected = True
-                
-                
+
+
                 from scanner.scanner import Scanner
-                
-                self.scanner.scanner = Scanner(motion_controller=old_motion)
-                
+
+                self.scanner.scanner = Scanner(motion_controller=old_motion, signal_scope=self.signal_scope)
+
                 self.configure_probe(True)
                 connected = False
                 self.pluginChosen_probe = True
@@ -591,9 +595,9 @@ class MainWindow(QMainWindow):
             "Are you sure you want to reset the instrument connection?"
         )
 
-        if response:  
+        if response:
             from scanner.scanner import Scanner
-            self.scanner.scanner = Scanner(probe_controller="Back")
+            self.scanner.scanner = Scanner(probe_controller="Back", signal_scope=self.signal_scope)
 
             self.configure_probe(True)
             #self.connected = False
@@ -683,9 +687,7 @@ class MainWindow(QMainWindow):
         self.visualizer_window.activateWindow()
             
     def open_signal_scope(self):
-        if not hasattr(self, "SignalScope"):
-            self.signal_scope = SignalScope()
-
+        # Signal scope is already created in __init__, just show it
         self.signal_scope.show()
         self.signal_scope.raise_()
         self.signal_scope.activateWindow()

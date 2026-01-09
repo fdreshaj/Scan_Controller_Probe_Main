@@ -10,6 +10,9 @@ from PySide6.QtGui import QFont
 import time
 import math
 from PySide6.QtGui import QFontMetrics
+import json
+import datetime
+import os
 
 
 LANES = [
@@ -557,7 +560,7 @@ class SignalScope(QWidget):
                 name
             )
     #### Error Checking
-    def freeze_on_error(self, message: str, lane: str):
+    def freeze_on_error(self, message: str, lane: str, additional_info: dict = None):
         if self.error_frozen:
             return
 
@@ -577,6 +580,9 @@ class SignalScope(QWidget):
         self.marker_x = int(self.view.viewport().width() * 0.85)
 
         self.view.viewport().update()
+
+        # Log error to JSON file
+        self._log_error_to_json(message, lane, additional_info)
 
         
     def _draw_error_banner(self, painter: QPainter):
@@ -601,7 +607,53 @@ class SignalScope(QWidget):
         self.error_time = None
         self.view.viewport().update()
 
-    
+    def _log_error_to_json(self, message: str, lane: str, additional_info: dict = None):
+        """Log error information to a JSON file in the errors directory."""
+        # Create errors directory if it doesn't exist
+        error_dir = "scan_errors"
+        os.makedirs(error_dir, exist_ok=True)
+
+        # Create timestamp for filename and error record
+        timestamp = datetime.datetime.now()
+        timestamp_str = timestamp.strftime("%Y%m%d_%H%M%S_%f")
+
+        # Build error record
+        error_record = {
+            "timestamp": timestamp.isoformat(),
+            "scope_time": self.error_time,
+            "lane": lane,
+            "message": message,
+            "error_type": self._infer_error_type(message),
+            "additional_info": additional_info or {}
+        }
+
+        # Write to JSON file
+        filename = os.path.join(error_dir, f"error_{timestamp_str}_{lane}.json")
+        try:
+            with open(filename, 'w') as f:
+                json.dump(error_record, f, indent=2)
+            print(f"Error logged to: {filename}")
+        except Exception as e:
+            print(f"Failed to log error to JSON: {e}")
+
+    def _infer_error_type(self, message: str) -> str:
+        """Infer error type from message content."""
+        message_lower = message.lower()
+        if "timeout" in message_lower or "timed out" in message_lower:
+            return "TIMEOUT"
+        elif "connection" in message_lower or "disconnect" in message_lower:
+            return "CONNECTION_ERROR"
+        elif "file" in message_lower or "write" in message_lower or "read" in message_lower:
+            return "FILE_IO_ERROR"
+        elif "motor" in message_lower or "motion" in message_lower or "movement" in message_lower:
+            return "MOTOR_ERROR"
+        elif "vna" in message_lower or "measurement" in message_lower:
+            return "VNA_ERROR"
+        elif "pattern" in message_lower:
+            return "PATTERN_ERROR"
+        else:
+            return "UNKNOWN"
+
     def _lane_is_error(self, lane_name):
         return self.error_frozen and self.error_lane == lane_name
 

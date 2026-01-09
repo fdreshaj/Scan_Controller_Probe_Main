@@ -13,14 +13,14 @@ class ScannerQt(QObject):
     z_move: float
     
     scanner: Scanner
-    
-    def __init__(self) -> None:
+
+    def __init__(self, signal_scope=None) -> None:
         super().__init__()
 
         self.xy_move = 0.0
         self.z_move = 0.0
 
-        self.scanner = Scanner()
+        self.scanner = Scanner(signal_scope=signal_scope)
 
     def close(self) -> None:
         print("!!!!!!!!!!!!!!!!!!!!!! Closing Qt Scanner Object !!!!!!!!!!!!!!!!!!!!!!")
