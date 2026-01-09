@@ -131,7 +131,11 @@ class ScanPattern(ScanPatternControllerPlugin):
            
             final_y.extend([r] * cols)
 
-        return np.array([final_y, final_x])
+
+        z = np.zeros(len(final_x))
+                
+        
+        return np.array([final_y, final_x,z])
     
     def rotate_points(self,matrix, theta_rad):
     

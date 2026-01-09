@@ -33,7 +33,7 @@ from scanner.cam_testing_2 import CameraApp as CameraApp
 import time     
 from PySide6.QtWidgets import QToolButton, QDialog, QVBoxLayout, QLabel
 from scanner.Signal_Scope import SignalScope 
-
+from scanner.S_param_visualizer import VisualizerWindow
 #endregion
 
 class MainWindow(QMainWindow):
@@ -666,10 +666,22 @@ class MainWindow(QMainWindow):
         open_scope_btn = QPushButton("Open Signal Scope")
         open_scope_btn.clicked.connect(self.open_signal_scope)
         layout.addWidget(open_scope_btn)
+        
+        open_visualizer_btn = QPushButton("Open Visualizer")
+        open_visualizer_btn.clicked.connect(self.open_visualizer)
+        layout.addWidget(open_visualizer_btn)
 
         dlg.resize(300, 200)
         dlg.exec()
     
+    
+    def open_visualizer(self):
+        if not hasattr(self, "VisualizerWindow"):
+            self.visualizer_window = VisualizerWindow(f"{self.metaData[1]}.hdf5") 
+        self.visualizer_window.show()
+        self.visualizer_window.raise_()
+        self.visualizer_window.activateWindow()
+            
     def open_signal_scope(self):
         if not hasattr(self, "SignalScope"):
             self.signal_scope = SignalScope()
