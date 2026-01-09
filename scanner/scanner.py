@@ -176,7 +176,16 @@ class Scanner():
                         busy_bit = self._motion_controller.is_moving()
                         while busy_bit[1] == True:
                             busy_bit = self._motion_controller.is_moving()
-                
+                    if diff_Var[2] > positive_thresh:
+                        self._motion_controller.move_absolute({2: step_size})
+                        busy_bit = self._motion_controller.is_moving()
+                        while busy_bit[2] == True:
+                            busy_bit = self._motion_controller.is_moving()
+                    elif diff_Var[2] < negative_thresh:
+                        self._motion_controller.move_absolute({2: negative_step_size})
+                        busy_bit = self._motion_controller.is_moving()
+                        while busy_bit[2] == True:
+                            busy_bit = self._motion_controller.is_moving()
                 end = time.time()
                 bar()
             

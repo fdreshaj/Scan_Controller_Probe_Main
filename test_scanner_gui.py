@@ -396,6 +396,9 @@ class MainWindow(QMainWindow):
                 
             for setting in self.scan_controller.settings_post_connect:
                     self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            planar_slope_button = QPushButton("Apply Planar Slope")
+            planar_slope_button.clicked.connect(self.run_slope_logic)
+            self.ui.config_layout.addRow(planar_slope_button)
             disconnect_button = QPushButton("Back")
             disconnect_button.clicked.connect(self.disconnect_pat)
             self.ui.config_layout.addRow(disconnect_button)
@@ -411,6 +414,8 @@ class MainWindow(QMainWindow):
                     self.ui.config_layout.removeRow(i)
             for setting in self.scan_controller.settings_pre_connect:
                         self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            
+            
             connect_button = QPushButton("Generate")
             connect_button.clicked.connect(self.connect_pat)
             self.ui.config_layout.addRow(connect_button)
@@ -570,7 +575,15 @@ class MainWindow(QMainWindow):
         home_btn = QPushButton("Home All Axes")
         home_btn.clicked.connect(self.scanner.scanner._motion_controller.home)
         self.ui.config_layout.addRow(home_btn)
-
+        
+    
+    def run_slope_logic(self):
+        
+        new_matrix = self.scan_controller.apply_planar_slope_ui(self.scan_controller.matrix)
+        
+    
+        if new_matrix is not None:
+            self.scan_controller.matrix = new_matrix
     def back_function(self):
 
         response = messagebox.askyesno(

@@ -44,7 +44,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         # i=0
         # for device in self.devices:
         #     if device == "ASRL3::INSTR":
-        self.resource_name = self.devices[2]
+        self.resource_name = self.devices[0]
         self.driver = self.rm.open_resource(self.resource_name)
         print(f"\nSuccessfully connected to: {self.resource_name}")
         # i = i+1
@@ -165,7 +165,7 @@ class motion_controller_plugin(MotionControllerPlugin):
  
     def is_moving(self,axis=None) -> bool:
 
-        movement=[True,True]
+        movement=[True,True,True]
         res = self.send_gcode_command("M400") 
         print("/////")
         
@@ -174,7 +174,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
             movement[0] = False
             movement[1] = False
-        
+            movement[2] = False
         
 
         return movement
