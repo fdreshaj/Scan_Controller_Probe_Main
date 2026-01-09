@@ -167,15 +167,23 @@ class CameraApp:
                 # Create a snapshots directory if it doesn't exist
                 if not os.path.exists("snapshots"):
                     os.makedirs("snapshots")
-                
+
                 # Generate a unique filename with a timestamp
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 filename = os.path.join("snapshots", f"snapshot_{timestamp}.png")
-                
+
                 cv2.imwrite(filename, frame)
                 print(f"Snapshot saved to {filename}")
             else:
                 messagebox.showwarning("Snapshot Failed", "Could not capture a snapshot.")
+
+    def get_current_frame(self):
+        """Returns the current camera frame as a numpy array, or None if camera is not running."""
+        if self.is_running and self.vid and self.vid.isOpened():
+            ret, frame = self.vid.read()
+            if ret:
+                return frame
+        return None
 
     def on_closing(self):
         # Stop the camera and destroy the window when closing

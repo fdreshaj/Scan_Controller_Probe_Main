@@ -97,7 +97,7 @@ class Scanner():
     
     
     
-    def run_scan(self, matrix, length, step_size, negative_step_size, meta_data, meta_data_labels) -> None:
+    def run_scan(self, matrix, length, step_size, negative_step_size, meta_data, meta_data_labels, camera_app=None, scan_settings=None) -> None:
         self.data_inc = 0
         self.matrix_copy = matrix
         negative_thresh = -0.01
@@ -106,11 +106,11 @@ class Scanner():
         negative_step_size = negative_step_size
         self._open_output_file()
         self.frequencies = self._probe_controller.get_xaxis_coords()
-        
+
         self.start_data = time.time()
-    
+
         self.HDF5FILE = h5py.File(f"{meta_data[1]}.hdf5", mode="a")  # meta 1 is filename
-        
+
         # Write metadata
         for i in range(0, len(meta_data)):
             self.HDF5FILE.attrs[f'{meta_data_labels[i]}'] = f'{meta_data[i]}'
@@ -120,6 +120,30 @@ class Scanner():
         self.HDF5FILE.attrs['isComplex'] = True
         self.HDF5FILE.attrs['numPoints'] = len(matrix[0])
         self.HDF5FILE.attrs['numFrequencies'] = len(self.frequencies)
+
+        # Save scan settings to HDF5
+        if scan_settings:
+            self.HDF5FILE.create_group("/ScanSettings")
+            for key, value in scan_settings.items():
+                self.HDF5FILE["/ScanSettings"].attrs[key] = str(value)
+
+        # Save camera image to HDF5
+        if camera_app:
+            try:
+                frame = camera_app.get_current_frame()
+                if frame is not None:
+                    import cv2
+                    # Encode image as PNG
+                    is_success, buffer = cv2.imencode(".png", frame)
+                    if is_success:
+                        # Store as binary dataset
+                        self.HDF5FILE.create_dataset("/CameraImage", data=np.frombuffer(buffer, dtype=np.uint8))
+                        self.HDF5FILE["/CameraImage"].attrs['format'] = 'PNG'
+                        self.HDF5FILE["/CameraImage"].attrs['timestamp'] = datetime.datetime.now().isoformat()
+                        print("Camera image saved to HDF5 file")
+            except Exception as e:
+                print(f"Failed to save camera image: {e}")
+
         freqs_ghz = np.asarray(self.frequencies, dtype=float) / 1e9
         # Create datasets for frequencies and coordinates
         self.HDF5FILE.create_dataset("/Frequencies/Range", data=freqs_ghz)  # Store frequencies in GHz
@@ -397,12 +421,32 @@ class Scanner():
     @property
     def motion_controller(self) -> MotionController:
         return self._motion_controller
-    
+
     @property
     def probe_controller(self) -> ProbeController:
         return self._probe_controller
 
-    
+    def swap_probe_plugin(self, new_probe):
+        """Swap probe plugin without recreating Scanner - preserves all state."""
+        # Disconnect old probe if connected
+        if self._probe_controller.is_connected():
+            self._probe_controller.disconnect()
+
+        # Create new probe controller
+        self._probe_controller = ProbeController(new_probe)
+        print(f"Swapped to probe plugin: {new_probe.__class__.__name__}")
+
+    def swap_motion_plugin(self, new_motion):
+        """Swap motion plugin without recreating Scanner - preserves all state."""
+        # Disconnect old motion controller if connected
+        if self._motion_controller.is_connected():
+            self._motion_controller.disconnect()
+
+        # Create new motion controller
+        self._motion_controller = MotionController(new_motion)
+        print(f"Swapped to motion plugin: {new_motion.__class__.__name__}")
+
+
 
     
 

@@ -612,26 +612,18 @@ class SignalScope(QWidget):
         font.setBold(True)
         return font
     def _draw_time_axes(self, painter: QPainter, t):
-        """Draw time axis with tick marks on each lane."""
+        """Draw static time axis with tick marks on each lane."""
         time_span = VIEW_WIDTH / PIXELS_PER_SEC
         current_time_x = VIEW_WIDTH * 0.85
         t_end = t
         t_start = t - (time_span * 0.85)
 
-        # Determine tick spacing based on zoom level
-        tick_interval = 0.1  # 100ms ticks by default
-        if time_span > 10:
-            tick_interval = 1.0  # 1 second ticks for zoomed out view
-        elif time_span < 2:
-            tick_interval = 0.05  # 50ms ticks for zoomed in view
+        # Static screen positions for ticks (every 100 pixels)
+        tick_spacing_pixels = 100
 
         # Draw ticks for each lane
         for i, (name, _) in enumerate(LANES):
             y_baseline = i * LANE_HEIGHT + LANE_HEIGHT // 2
-
-            # Determine tick times
-            first_tick = (int(t_start / tick_interval) + 1) * tick_interval
-            tick_time = first_tick
 
             pen = QPen(self._label_pen())
             pen.setWidthF(1.0)
@@ -640,23 +632,21 @@ class SignalScope(QWidget):
             small_font = QFont("Segoe UI", 7)
             painter.setFont(small_font)
 
-            while tick_time <= t_end:
-                # Convert time to x position
-                time_delta = tick_time - t
-                x = current_time_x + (time_delta * PIXELS_PER_SEC)
+            # Draw ticks at fixed screen positions
+            for x in range(0, VIEW_WIDTH + 1, tick_spacing_pixels):
+                # Calculate what time this x position represents
+                time_delta = (x - current_time_x) / PIXELS_PER_SEC
+                tick_time = t + time_delta
 
-                if 0 <= x <= VIEW_WIDTH:
-                    # Draw tick mark
-                    tick_length = 8
-                    painter.drawLine(int(x), y_baseline - tick_length, int(x), y_baseline + tick_length)
+                # Draw tick mark
+                tick_length = 8
+                painter.drawLine(x, y_baseline - tick_length, x, y_baseline + tick_length)
 
-                    # Draw time label (every major tick)
-                    if abs(tick_time % (tick_interval * 5)) < 0.001:  # Major tick every 5 intervals
-                        time_ms = tick_time * 1000.0
-                        label = f"{time_ms:.0f}ms"
-                        painter.drawText(int(x) + 2, y_baseline - 12, label)
-
-                tick_time += tick_interval
+                # Draw time label
+                time_ms = tick_time * 1000.0
+                if time_ms >= 0:  # Only show positive times
+                    label = f"{time_ms:.0f}ms"
+                    painter.drawText(x + 2, y_baseline - 12, label)
 
     def _draw_lane_labels(self, painter: QPainter):
         painter.setPen(self._label_pen())

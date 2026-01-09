@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
         self.file_controller = ScanFile()
         self.motion_config_counter = 0
         self.current_theme = "light"
+        self.camera_app = None  # Will be set when camera is opened
         self.setup_theme_toggle()
         self.setup_settings_button()
         self.setup_top_controls()
@@ -218,173 +219,130 @@ class MainWindow(QMainWindow):
             
     def camera_pop_up(self):
         root = tk.Tk()
-    
-    
-        app = CameraApp(root)
-        
-        
+        self.camera_app = CameraApp(root)
         root.mainloop()
     def set_configuration_settings_motion(self, controller, connected, connect_function, disconnect_function):
-        
-        self.motion_connected = connected 
+        """Configure motion controller settings UI - SIMPLIFIED VERSION."""
+        # Clear the config layout
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
-      
-        
-        if self.motion_connected:
-           
-            if self.pluginChosen_motion == False:
-               
-                for i in reversed(range(self.ui.config_layout.rowCount())):
-                    self.ui.config_layout.removeRow(i)
-            
-                old_probe = self.scanner.scanner.probe_controller
 
-                from scanner.scanner import Scanner
-                self.scanner.scanner = Scanner(probe_controller=old_probe, signal_scope=self.signal_scope)
-                self.configure_motion(True)
-                self.motion_connected = False
-                self.pluginChosen_motion = True
-                
-    
+        if connected:
+            # Motion controller is connected - show settings and controls
+            self.settings_motion_list = []
 
-            elif self.pluginChosen_motion == True:
-                self.settings_motion_list = []
-                for setting in controller.settings_pre_connect:
-                    plug = QPluginSetting(setting)
-                    plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)
-                   
-                disconnect_button = QPushButton("Disconnect")
-                disconnect_button.clicked.connect(disconnect_function)
-                self.ui.config_layout.addRow(disconnect_button)
-                
-                for setting in controller.settings_post_connect:
-                    
-                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-                i = 0
-                for setting in controller.settings_pre_connect:
-                    self.settings_motion_list.append( PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[i]))
-                    i = i+1
-                    
-               
-                # self.pos_mult = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[2])
-                # self.accel = PluginSettingFloat.get_value_as_string(controller.settings_pre_connect[5])
-                
-                self.scan_testing()
-                self.home_button()
+            # Show pre-connect settings (disabled, just for display)
+            for setting in controller.settings_pre_connect:
+                plug = QPluginSetting(setting)
+                plug.setDisabled(True)
+                self.ui.config_layout.addRow(setting.display_label, plug)
+                # Save values for later use
+                self.settings_motion_list.append(PluginSettingFloat.get_value_as_string(setting))
+
+            # Disconnect button
+            disconnect_button = QPushButton("Disconnect")
+            disconnect_button.clicked.connect(disconnect_function)
+            self.ui.config_layout.addRow(disconnect_button)
+
+            # Post-connect settings (editable)
+            for setting in controller.settings_post_connect:
+                self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+
+            # Add utility buttons
+            self.scan_testing()
+            self.home_button()
+
+            # Mark that motion plugin has been chosen
+            self.pluginChosen_motion = True
 
         else:
-                
-                for setting in controller.settings_pre_connect:
-                    
-                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-                   
-                
-                connect_button = QPushButton("Connect")
-                connect_button.clicked.connect(connect_function)
-                self.ui.config_layout.addRow(connect_button)
-                i = 0
-                for setting in controller.settings_post_connect:
-                    
-                    plug = QPluginSetting(setting)
-                    plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)
-                    
-                       
-                
-                    
+            # Motion controller not connected - show connection UI
+            # Pre-connect settings (editable before connection)
+            for setting in controller.settings_pre_connect:
+                self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+
+            # Connect button
+            connect_button = QPushButton("Connect")
+            connect_button.clicked.connect(connect_function)
+            self.ui.config_layout.addRow(connect_button)
+
+            # Post-connect settings (disabled until connected)
+            for setting in controller.settings_post_connect:
+                plug = QPluginSetting(setting)
+                plug.setDisabled(True)
+                self.ui.config_layout.addRow(setting.display_label, plug)
+
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
-        
+        """Configure probe controller settings UI - SIMPLIFIED VERSION."""
+        # Clear the config layout
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
-        
-    
+
         if connected:
-            
-            if self.pluginChosen_probe == False:
-            
-                for i in reversed(range(self.ui.config_layout.rowCount())):
-                    self.ui.config_layout.removeRow(i)
-                    
-                
-                old_motion = self.scanner.scanner.motion_controller
+            # Probe controller is connected - show settings and controls
+            # Show pre-connect settings (disabled, just for display)
+            for setting in controller.settings_pre_connect:
+                plug = QPluginSetting(setting)
+                plug.setDisabled(True)
+                self.ui.config_layout.addRow(setting.display_label, plug)
 
-                self.motion_connected = True
+            # Disconnect button
+            disconnect_button = QPushButton("Disconnect")
+            disconnect_button.clicked.connect(disconnect_function)
+            self.ui.config_layout.addRow(disconnect_button)
 
+            # Post-connect settings (editable)
+            for setting in controller.settings_post_connect:
+                self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
-                from scanner.scanner import Scanner
+            # Setup plotter with connected VNA
+            self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
+            self.setup_plotting_canvas()
 
-                self.scanner.scanner = Scanner(motion_controller=old_motion, signal_scope=self.signal_scope)
+            # Plot button
+            plot_btn = QPushButton("Plot")
+            plot_btn.clicked.connect(self.plot_btn)
+            self.ui.config_layout.addRow(plot_btn)
 
-                self.configure_probe(True)
-                connected = False
-                self.pluginChosen_probe = True
-                
-                if self.pluginChosen_motion == True:
-                    
-                    self.scanner.scanner.motion_controller.disconnect()
-                
-        
-            elif self.pluginChosen_probe == True:
-                for setting in controller.settings_pre_connect:
-                    plug = QPluginSetting(setting)
-                    plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)
-                disconnect_button = QPushButton("Disconnect")
-                disconnect_button.clicked.connect(disconnect_function)
-                self.ui.config_layout.addRow(disconnect_button)
-                for setting in controller.settings_post_connect:
-                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
+            # Save button
+            save_btn = QPushButton("Save Data")
+            save_btn.clicked.connect(self.save_btn)
+            self.ui.config_layout.addRow(save_btn)
 
-                self.plotter = plotter_system(connected_vna_plugin=self.scanner.scanner.probe_controller._probe)
-                self.setup_plotting_canvas()
-                plot_btn = QPushButton("Plot")
-                plot_btn.clicked.connect(self.plot_btn)   
-                self.ui.config_layout.addRow(plot_btn)
-                
-                
+            # Back button (only add once)
+            if not self.back_btn_check:
+                self.back_btn_check = True
+                back_btn = QPushButton("Back")
+                back_btn.clicked.connect(self.back_function)
+                self.ui.config_layout.addRow(back_btn)
 
-                save_btn = QPushButton("Save Data")
-                save_btn.clicked.connect(self.save_btn)   
-                self.ui.config_layout.addRow(save_btn)
+            # Mark that probe plugin has been chosen
+            self.pluginChosen_probe = True
 
-                if self.back_btn_check == False:
-                    self.back_btn_check = True
-                    back_btn = QPushButton("Back")
-                    back_btn.clicked.connect(self.back_function)
-                    self.ui.config_layout.addRow(back_btn)
-                    
-                if self.pluginChosen_motion == True:
-                    
-                    self.scanner.scanner.motion_controller.connect() 
-                    print(f"{self.settings_motion_list[4]},{self.settings_motion_list[5]},{self.settings_motion_list[6]},{self.settings_motion_list[7]},{self.settings_motion_list[8]}")
-                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[4])
-                    self.scanner.scanner.motion_controller.set_acceleration(self.settings_motion_list[5])
-                    self.scanner.scanner.motion_controller.set_config(self.settings_motion_list[8],self.settings_motion_list[7],self.settings_motion_list[6])
-                    #In this case 8 7 6 correspont to amps idle percent and idle timeout respectively, need to refactor this to be more general for all possible plugins FIXME: 
-                       
-                
         else:
-                
-                for setting in controller.settings_pre_connect:
-                    self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-                connect_button = QPushButton("Connect")
-                connect_button.clicked.connect(connect_function)
-                self.ui.config_layout.addRow(connect_button)
-                
-               
-                for setting in controller.settings_post_connect:
-                    plug = QPluginSetting(setting)
-                    plug.setDisabled(True)
-                    self.ui.config_layout.addRow(setting.display_label, plug)
+            # Probe controller not connected - show connection UI
+            # Pre-connect settings (editable before connection)
+            for setting in controller.settings_pre_connect:
+                self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
-                if self.back_btn_check == False:
-                    self.back_btn_check = True
-                    back_btn = QPushButton("Back")
-                    back_btn.clicked.connect(self.back_function)
-                    self.ui.config_layout.addRow(back_btn)
+            # Connect button
+            connect_button = QPushButton("Connect")
+            connect_button.clicked.connect(connect_function)
+            self.ui.config_layout.addRow(connect_button)
+
+            # Post-connect settings (disabled until connected)
+            for setting in controller.settings_post_connect:
+                plug = QPluginSetting(setting)
+                plug.setDisabled(True)
+                self.ui.config_layout.addRow(setting.display_label, plug)
+
+            # Back button (only add once)
+            if not self.back_btn_check:
+                self.back_btn_check = True
+                back_btn = QPushButton("Back")
+                back_btn.clicked.connect(self.back_function)
+                self.ui.config_layout.addRow(back_btn)
                     
                     
     def set_configuration_setting_pattern(self,connected) -> None:
@@ -531,23 +489,51 @@ class MainWindow(QMainWindow):
         
         
         
-    #region scan button func    
+    #region scan button func
     def test_scan_bt(self):
         self.step_size = self.scan_controller.float_step_size
         self.length = self.scan_controller.y_axis_len
-        matrix = self.scan_controller.matrix 
+        matrix = self.scan_controller.matrix
         self.metaData=[]
         inc = 0
         for setting in self.file_controller.settings_pre_connect:
             plug = QPluginSetting(setting)
             self.metaData.append(PluginSettingString.get_value_as_string(self.file_controller.settings_pre_connect[inc]))
             inc = inc +1
-        
+
         self.metaData_labels = self.file_display_label_text
-        
-            
+
+        # Collect all scan settings
+        scan_settings = {
+            'step_size_mm': float(self.step_size),
+            'scan_length': float(self.length),
+            'matrix_shape': f"{matrix.shape[0]}x{matrix.shape[1]}",
+            'num_points': int(matrix.shape[1]),
+            'scan_pattern_type': self.scan_controller.pattern_type if hasattr(self.scan_controller, 'pattern_type') else 'unknown',
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+
+        # Add motion controller settings if available
+        if self.pluginChosen_motion and hasattr(self, 'settings_motion_list'):
+            for idx, value in enumerate(self.settings_motion_list):
+                scan_settings[f'motion_setting_{idx}'] = str(value)
+
+        # Add probe controller settings if available
+        if self.pluginChosen_probe:
+            try:
+                probe = self.scanner.scanner.probe_controller
+                if probe.is_connected():
+                    scan_settings['probe_connected'] = 'True'
+                    scan_settings['probe_plugin'] = probe._probe.__class__.__name__
+            except:
+                pass
+
         self.negative_step_size = np.negative(self.step_size)
-        self.scan_thread = threading.Thread(target=self.scanner.scanner.run_scan,args=(matrix,self.length,self.step_size,self.negative_step_size,self.metaData,self.metaData_labels))
+        self.scan_thread = threading.Thread(
+            target=self.scanner.scanner.run_scan,
+            args=(matrix, self.length, self.step_size, self.negative_step_size, self.metaData, self.metaData_labels),
+            kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings}
+        )
         self.scan_thread.start()
         
             
@@ -589,21 +575,20 @@ class MainWindow(QMainWindow):
         if new_matrix is not None:
             self.scan_controller.matrix = new_matrix
     def back_function(self):
-
+        """Reset probe plugin selection - SIMPLIFIED VERSION using hot-swap."""
         response = messagebox.askyesno(
             "Reset Instrument Connection",
             "Are you sure you want to reset the instrument connection?"
         )
 
         if response:
-            from scanner.scanner import Scanner
-            self.scanner.scanner = Scanner(probe_controller="Back", signal_scope=self.signal_scope)
+            # Use hot-swap to reset to default probe plugin
+            from scanner.plugin_switcher import PluginSwitcher
+            self.scanner.scanner.swap_probe_plugin(PluginSwitcher())
 
-            self.configure_probe(True)
-            #self.connected = False
+            # Reset state and refresh UI
             self.pluginChosen_probe = False
-        else: 
-            pass 
+            self.configure_probe(True) 
                 
 
 
