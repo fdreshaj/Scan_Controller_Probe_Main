@@ -426,25 +426,51 @@ class Scanner():
     def probe_controller(self) -> ProbeController:
         return self._probe_controller
 
-    def swap_probe_plugin(self, new_probe):
-        """Swap probe plugin without recreating Scanner - preserves all state."""
+    def swap_probe_plugin(self):
+        """Swap probe plugin by reading from PluginSwitcher - preserves Scanner state."""
         # Disconnect old probe if connected
         if self._probe_controller.is_connected():
             self._probe_controller.disconnect()
 
-        # Create new probe controller
-        self._probe_controller = ProbeController(new_probe)
-        print(f"Swapped to probe plugin: {new_probe.__class__.__name__}")
+        # Load the new plugin based on PluginSwitcher selection
+        if PluginSwitcher.plugin_name == "":
+            new_plugin = PluginSwitcher()
+        else:
+            plugin_module_name = f"scanner.Plugins.{PluginSwitcher.basename.replace('.py', '')}"
+            try:
+                plugin_module = importlib.import_module(plugin_module_name)
+                plugin_class = getattr(plugin_module, PluginSwitcher.plugin_name)
+                new_plugin = plugin_class()
+            except (ImportError, AttributeError) as e:
+                print(f"Error loading probe plugin: {e}")
+                new_plugin = PluginSwitcher()
 
-    def swap_motion_plugin(self, new_motion):
-        """Swap motion plugin without recreating Scanner - preserves all state."""
+        # Create new probe controller with selected plugin
+        self._probe_controller = ProbeController(new_plugin)
+        print(f"Swapped to probe plugin: {new_plugin.__class__.__name__}")
+
+    def swap_motion_plugin(self):
+        """Swap motion plugin by reading from PluginSwitcherMotion - preserves Scanner state."""
         # Disconnect old motion controller if connected
         if self._motion_controller.is_connected():
             self._motion_controller.disconnect()
 
-        # Create new motion controller
-        self._motion_controller = MotionController(new_motion)
-        print(f"Swapped to motion plugin: {new_motion.__class__.__name__}")
+        # Load the new plugin based on PluginSwitcherMotion selection
+        if PluginSwitcherMotion.plugin_name == "":
+            new_plugin = PluginSwitcherMotion()
+        else:
+            motion_module_name = f"scanner.Plugins.{PluginSwitcherMotion.basename.replace('.py', '')}"
+            try:
+                motion_module = importlib.import_module(motion_module_name)
+                motion_class = getattr(motion_module, PluginSwitcherMotion.plugin_name)
+                new_plugin = motion_class()
+            except (ImportError, AttributeError) as e:
+                print(f"Error loading motion plugin: {e}")
+                new_plugin = PluginSwitcherMotion()
+
+        # Create new motion controller with selected plugin
+        self._motion_controller = MotionController(new_plugin)
+        print(f"Swapped to motion plugin: {new_plugin.__class__.__name__}")
 
 
 

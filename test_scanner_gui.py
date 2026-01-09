@@ -252,9 +252,6 @@ class MainWindow(QMainWindow):
             self.scan_testing()
             self.home_button()
 
-            # Mark that motion plugin has been chosen
-            self.pluginChosen_motion = True
-
         else:
             # Motion controller not connected - show connection UI
             # Pre-connect settings (editable before connection)
@@ -316,9 +313,6 @@ class MainWindow(QMainWindow):
                 back_btn = QPushButton("Back")
                 back_btn.clicked.connect(self.back_function)
                 self.ui.config_layout.addRow(back_btn)
-
-            # Mark that probe plugin has been chosen
-            self.pluginChosen_probe = True
 
         else:
             # Probe controller not connected - show connection UI
@@ -394,6 +388,11 @@ class MainWindow(QMainWindow):
     #region c/dc functions
     @Slot()
     def connect_motion(self):
+        # Swap to selected plugin if this is first connection
+        if not self.pluginChosen_motion:
+            self.scanner.scanner.swap_motion_plugin()
+            self.pluginChosen_motion = True
+
         self.scanner.scanner.motion_controller.connect()
         self.configure_motion(True)
 
@@ -401,18 +400,21 @@ class MainWindow(QMainWindow):
     def disconnect_motion(self):
         self.scanner.scanner.motion_controller.disconnect()
         self.configure_motion(True)
-            
+
     @Slot()
     def connect_probe(self):
+        # Swap to selected plugin if this is first connection
+        if not self.pluginChosen_probe:
+            self.scanner.scanner.swap_probe_plugin()
+            self.pluginChosen_probe = True
+
         self.scanner.scanner.probe_controller.connect()
         self.configure_probe(True)
-
 
     @Slot()
     def disconnect_probe(self):
         self.scanner.scanner.probe_controller.disconnect()
         self.configure_probe(True)
-        #self.connect = False
         
     @Slot()
     def finish_config(self):
@@ -582,9 +584,13 @@ class MainWindow(QMainWindow):
         )
 
         if response:
-            # Use hot-swap to reset to default probe plugin
+            # Reset PluginSwitcher to default (empty)
             from scanner.plugin_switcher import PluginSwitcher
-            self.scanner.scanner.swap_probe_plugin(PluginSwitcher())
+            PluginSwitcher.plugin_name = ""
+            PluginSwitcher.basename = ""
+
+            # Swap to default probe plugin (will read the reset PluginSwitcher)
+            self.scanner.scanner.swap_probe_plugin()
 
             # Reset state and refresh UI
             self.pluginChosen_probe = False
