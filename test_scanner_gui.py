@@ -19,6 +19,7 @@ import raster_pattern_generator as scan_pattern_gen
 import numpy as np
 import matplotlib
 import qdarktheme
+import datetime
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QToolButton
 from PySide6.QtWidgets import QWidget, QHBoxLayout
