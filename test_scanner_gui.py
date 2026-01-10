@@ -96,6 +96,9 @@ class MainWindow(QMainWindow):
         self.ui.configure_pattern_button.clicked.connect(self.configure_pattern)
         self.ui.configure_file_button.clicked.connect(self.configure_file)
 
+        # Connect start scan button to run scan function
+        self.ui.start_scan_button.clicked.connect(self.test_scan_bt)
+
         self.scanner.current_position_x.connect(self.ui.x_axis_slider.setSliderPosition)
         self.scanner.current_position_y.connect(self.ui.y_axis_slider.setSliderPosition)
         self.scanner.current_position_z.connect(self.ui.z_axis_slider.setSliderPosition)
@@ -406,16 +409,21 @@ class MainWindow(QMainWindow):
             matrix = self.scan_controller.matrix 
             self.scan_testing()      
             ### TESTING
-        else:   
+        else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
             for setting in self.scan_controller.settings_pre_connect:
                         self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
-            
-            
+
+
             connect_button = QPushButton("Generate")
             connect_button.clicked.connect(self.connect_pat)
             self.ui.config_layout.addRow(connect_button)
+
+            # Add back button for scan pattern pre-connect state
+            back_button = QPushButton("Back")
+            back_button.clicked.connect(self.disconnect_pat)
+            self.ui.config_layout.addRow(back_button)
             
             
     #endregion

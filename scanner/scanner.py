@@ -154,26 +154,30 @@ class Scanner():
         self.HDF5FILE.create_dataset("/Coords/x_data", data=self.matrix_copy[0, :]*step_size)
         self.HDF5FILE.create_dataset("/Coords/y_data", data=self.matrix_copy[1, :]*step_size)
         self.HDF5FILE.create_dataset("/Coords/z_data", data=np.zeros(len(matrix[0])))
-        
+
         # Get S-parameter names from probe controller
         self.s_param_names = self._probe_controller.get_channel_names()
-        
+
         # Pre-allocate arrays for bulk data storage
         num_points = len(matrix[0])
         num_freqs = len(self.frequencies)
-        
+
         # Create datasets for each S-parameter dynamically
         self.HDF5FILE.create_group("/Data")
         for s_param_name in self.s_param_names:
             self.HDF5FILE.create_dataset(f"/Data/{s_param_name}_real", (num_points, num_freqs), dtype='float64')
             self.HDF5FILE.create_dataset(f"/Data/{s_param_name}_imag", (num_points, num_freqs), dtype='float64')
             print(f"Created datasets for {s_param_name}")
-        
+
+        # VNA error tracking - only trigger error if it fails twice in a row
+        vna_consecutive_failures = 0
+
         with alive_bar(len(matrix[0])) as bar:
             for i in range(len(matrix[0])):
                 start = time.time()
 
-                # VNA measurement with error handling
+                # VNA measurement with error handling and retry logic
+                all_s_params_data = None
                 try:
                     if self.signal_scope:
                         self.signal_scope.set_lane_active("VNA")
@@ -182,23 +186,39 @@ class Scanner():
 
                     if self.signal_scope:
                         self.signal_scope.set_lane_idle("VNA")
+
+                    # VNA measurement successful - reset consecutive failure counter
+                    vna_consecutive_failures = 0
+
                 except Exception as e:
                     if self.signal_scope:
                         self.signal_scope.set_lane_idle("VNA")
 
-                    error_msg = f"VNA measurement failed: {str(e)}"
+                    vna_consecutive_failures += 1
+                    error_msg = f"VNA measurement failed (attempt {vna_consecutive_failures}): {str(e)}"
                     print(error_msg)
-                    if self.signal_scope:
-                        self.signal_scope.freeze_on_error(
-                            error_msg,
-                            "VNA",
-                            {
-                                "point_index": i,
-                                "position": matrix[:, i].tolist(),
-                                "exception_type": type(e).__name__
-                            }
-                        )
-                    break
+
+                    # Only treat as fatal error if it fails twice in a row
+                    if vna_consecutive_failures >= 2:
+                        if self.signal_scope:
+                            self.signal_scope.freeze_on_error(
+                                f"VNA measurement failed twice consecutively: {str(e)}",
+                                "VNA",
+                                {
+                                    "point_index": i,
+                                    "position": matrix[:, i].tolist(),
+                                    "exception_type": type(e).__name__,
+                                    "consecutive_failures": vna_consecutive_failures
+                                }
+                            )
+                        break
+                    else:
+                        # Single failure - zero pad this data point and continue
+                        print(f"Single VNA failure at point {i}. Zero-padding data and continuing...")
+                        all_s_params_data = {}
+                        for s_param_name in self.s_param_names:
+                            # Create zero-padded data with correct shape
+                            all_s_params_data[s_param_name] = np.zeros(num_freqs, dtype=complex)
 
                 current_position = self._motion_controller.get_current_positions()
 
