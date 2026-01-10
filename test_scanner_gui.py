@@ -105,7 +105,8 @@ class MainWindow(QMainWindow):
 
         self.display_timer = QTimer()
         self.display_timer.setInterval(1000 // 60)
-        self.display_timer.timeout.connect(self.scanner.update_motion)
+        # Don't update motion continuously - only on movement commands
+        # self.display_timer.timeout.connect(self.scanner.update_motion)
         self.display_timer.start()
     #endregion
     
