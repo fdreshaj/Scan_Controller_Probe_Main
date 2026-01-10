@@ -101,7 +101,7 @@ class Scanner():
     
     
     
-    def run_scan(self, matrix, length, step_size, negative_step_size, meta_data, meta_data_labels, camera_app=None, scan_settings=None) -> None:
+    def run_scan(self, matrix, length, step_size, negative_step_size, meta_data, meta_data_labels, camera_app=None, scan_settings=None, scan_point_callback=None) -> None:
         self.data_inc = 0
         self.matrix_copy = matrix
         negative_thresh = -0.01
@@ -253,6 +253,13 @@ class Scanner():
                     break
 
                 self.data_inc += 1
+
+                # Call callback for real-time plotting updates
+                if scan_point_callback is not None:
+                    try:
+                        scan_point_callback(i, all_s_params_data)
+                    except Exception as e:
+                        print(f"Warning: Scan point callback failed: {e}")
 
                 # Motor movement with error handling
                 if i < len(matrix[0]) - 1:

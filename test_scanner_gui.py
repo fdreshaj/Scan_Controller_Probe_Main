@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
 
         self.display_timer = QTimer()
         self.display_timer.setInterval(1000 // 60)
-       # self.display_timer.timeout.connect(self.scanner.update_motion) TODO:
+        self.display_timer.timeout.connect(self.scanner.update_motion)
         self.display_timer.start()
     #endregion
     
@@ -232,22 +232,27 @@ class MainWindow(QMainWindow):
             go_back_file.clicked.connect(self.go_back_file)
             self.ui.config_layout.addRow(go_back_file)  
         
-        else:   
+        else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                     self.ui.config_layout.removeRow(i)
             for setting in self.file_controller.settings_pre_connect:
                         self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
             get_file_dir = QPushButton("Choose File Directory")
             get_file_dir.clicked.connect(self.get_file_dir)
-            self.ui.config_layout.addRow(get_file_dir)            
-                        
+            self.ui.config_layout.addRow(get_file_dir)
+
             finish_config = QPushButton("Finish Config")
             finish_config.clicked.connect(self.finish_config)
             self.ui.config_layout.addRow(finish_config)
-            
+
             camera_pop_up = QPushButton("Camera Pop Up")
             camera_pop_up.clicked.connect(self.camera_pop_up)
             self.ui.config_layout.addRow(camera_pop_up)
+
+            # Add back button for scan file pre-connect state
+            back_button = QPushButton("Back")
+            back_button.clicked.connect(self.go_back_file)
+            self.ui.config_layout.addRow(back_button)
             
             
             
@@ -535,6 +540,19 @@ class MainWindow(QMainWindow):
         
         
     #region scan button func
+    def update_plot_during_scan(self, point_index, s_params_data):
+        """Callback function to update plotter in real-time during scan."""
+        try:
+            # Only update plot if plotter is initialized and probe is connected
+            if hasattr(self, 'plotter') and self.scanner.scanner.probe_controller.is_connected():
+                # Update plotter with new data point
+                # This will update the existing plot with the latest measurement
+                self.plotter._get_and_process_data("Log Mag")
+                self.plotter.canvas.draw()
+                self.plotter.canvas.flush_events()
+        except Exception as e:
+            print(f"Error updating plot during scan: {e}")
+
     def test_scan_bt(self):
         self.step_size = self.scan_controller.float_step_size
         self.length = self.scan_controller.y_axis_len
@@ -577,7 +595,7 @@ class MainWindow(QMainWindow):
         self.scan_thread = threading.Thread(
             target=self.scanner.scanner.run_scan,
             args=(matrix, self.length, self.step_size, self.negative_step_size, self.metaData, self.metaData_labels),
-            kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings}
+            kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings, 'scan_point_callback': self.update_plot_during_scan}
         )
         self.scan_thread.start()
         
