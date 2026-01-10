@@ -10,7 +10,7 @@ import datetime
 import time 
 import os
 import struct
-from npy_append_array import NpyAppendArray
+#from npy_append_array import NpyAppendArray
 import h5py
 import tkinter as tk
 from tkinter import ttk
