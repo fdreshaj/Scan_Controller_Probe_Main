@@ -122,11 +122,26 @@ class MainWindow(QMainWindow):
         
     @Slot(bool)
     def configure_motion(self, was_selected: bool) -> None:
-        
+
         if was_selected:
+            # Check if a plugin has been selected yet
+            from scanner.plugin_switcher_motion import PluginSwitcherMotion
+
+            if PluginSwitcherMotion.plugin_name == "":
+                # No plugin selected - show file dialog
+                if PluginSwitcherMotion.select_plugin():
+                    # Plugin was selected, swap to it
+                    self.scanner.scanner.swap_motion_plugin()
+                    self.pluginChosen_motion = True
+                else:
+                    # User cancelled - uncheck the configure button
+                    self.ui.configure_motion_button.setChecked(False)
+                    return
+
+            # Now show the configuration UI
             controller = self.scanner.scanner.motion_controller
             self.set_configuration_settings_motion(controller._driver, controller.is_connected(), self.connect_motion, self.disconnect_motion)
-            
+
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
                 self.ui.config_layout.removeRow(i)
@@ -134,6 +149,21 @@ class MainWindow(QMainWindow):
     @Slot(bool)
     def configure_probe(self, was_selected: bool) -> None:
         if was_selected:
+            # Check if a plugin has been selected yet
+            from scanner.plugin_switcher import PluginSwitcher
+
+            if PluginSwitcher.plugin_name == "":
+                # No plugin selected - show file dialog
+                if PluginSwitcher.select_plugin():
+                    # Plugin was selected, swap to it
+                    self.scanner.scanner.swap_probe_plugin()
+                    self.pluginChosen_probe = True
+                else:
+                    # User cancelled - uncheck the configure button
+                    self.ui.configure_probe_button.setChecked(False)
+                    return
+
+            # Now show the configuration UI
             controller = self.scanner.scanner.probe_controller
             self.set_configuration_settings_probe(controller._probe, controller.is_connected(), self.connect_probe, self.disconnect_probe)
         else:
@@ -253,6 +283,11 @@ class MainWindow(QMainWindow):
             self.scan_testing()
             self.home_button()
 
+            # Back button for resetting plugin selection
+            back_btn = QPushButton("Reset Plugin")
+            back_btn.clicked.connect(self.back_function_motion)
+            self.ui.config_layout.addRow(back_btn)
+
         else:
             # Motion controller not connected - show connection UI
             # Pre-connect settings (editable before connection)
@@ -269,6 +304,13 @@ class MainWindow(QMainWindow):
                 plug = QPluginSetting(setting)
                 plug.setDisabled(True)
                 self.ui.config_layout.addRow(setting.display_label, plug)
+
+            # Change Plugin button (only for non-switcher plugins)
+            from scanner.plugin_switcher_motion import PluginSwitcherMotion
+            if PluginSwitcherMotion.plugin_name != "":
+                change_plugin_btn = QPushButton("Change Plugin")
+                change_plugin_btn.clicked.connect(self.change_motion_plugin)
+                self.ui.config_layout.addRow(change_plugin_btn)
 
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
@@ -308,12 +350,10 @@ class MainWindow(QMainWindow):
             save_btn.clicked.connect(self.save_btn)
             self.ui.config_layout.addRow(save_btn)
 
-            # Back button (only add once)
-            if not self.back_btn_check:
-                self.back_btn_check = True
-                back_btn = QPushButton("Back")
-                back_btn.clicked.connect(self.back_function)
-                self.ui.config_layout.addRow(back_btn)
+            # Reset Plugin button
+            back_btn = QPushButton("Reset Plugin")
+            back_btn.clicked.connect(self.back_function)
+            self.ui.config_layout.addRow(back_btn)
 
         else:
             # Probe controller not connected - show connection UI
@@ -332,14 +372,14 @@ class MainWindow(QMainWindow):
                 plug.setDisabled(True)
                 self.ui.config_layout.addRow(setting.display_label, plug)
 
-            # Back button (only add once)
-            if not self.back_btn_check:
-                self.back_btn_check = True
-                back_btn = QPushButton("Back")
-                back_btn.clicked.connect(self.back_function)
-                self.ui.config_layout.addRow(back_btn)
-                    
-                    
+            # Change Plugin button (only for non-switcher plugins)
+            from scanner.plugin_switcher import PluginSwitcher
+            if PluginSwitcher.plugin_name != "":
+                change_plugin_btn = QPushButton("Change Plugin")
+                change_plugin_btn.clicked.connect(self.change_probe_plugin)
+                self.ui.config_layout.addRow(change_plugin_btn)
+
+
     def set_configuration_setting_pattern(self,connected) -> None:
         
         
@@ -389,11 +429,8 @@ class MainWindow(QMainWindow):
     #region c/dc functions
     @Slot()
     def connect_motion(self):
-        # Swap to selected plugin if this is first connection
-        if not self.pluginChosen_motion:
-            self.scanner.scanner.swap_motion_plugin()
-            self.pluginChosen_motion = True
-
+        # Plugin is already swapped when selected via configure_motion
+        # Just connect to the hardware
         self.scanner.scanner.motion_controller.connect()
         self.configure_motion(True)
 
@@ -404,11 +441,8 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def connect_probe(self):
-        # Swap to selected plugin if this is first connection
-        if not self.pluginChosen_probe:
-            self.scanner.scanner.swap_probe_plugin()
-            self.pluginChosen_probe = True
-
+        # Plugin is already swapped when selected via configure_probe
+        # Just connect to the hardware
         self.scanner.scanner.probe_controller.connect()
         self.configure_probe(True)
 
@@ -577,11 +611,37 @@ class MainWindow(QMainWindow):
     
         if new_matrix is not None:
             self.scan_controller.matrix = new_matrix
+    def change_probe_plugin(self):
+        """Allow user to select a different probe plugin."""
+        from scanner.plugin_switcher import PluginSwitcher
+
+        # Show file dialog to select new plugin
+        if PluginSwitcher.select_plugin():
+            # Plugin was selected, swap to it
+            self.scanner.scanner.swap_probe_plugin()
+            self.pluginChosen_probe = True
+
+            # Refresh UI to show new plugin's settings
+            self.configure_probe(True)
+
+    def change_motion_plugin(self):
+        """Allow user to select a different motion plugin."""
+        from scanner.plugin_switcher_motion import PluginSwitcherMotion
+
+        # Show file dialog to select new plugin
+        if PluginSwitcherMotion.select_plugin():
+            # Plugin was selected, swap to it
+            self.scanner.scanner.swap_motion_plugin()
+            self.pluginChosen_motion = True
+
+            # Refresh UI to show new plugin's settings
+            self.configure_motion(True)
+
     def back_function(self):
         """Reset probe plugin selection - SIMPLIFIED VERSION using hot-swap."""
         response = messagebox.askyesno(
-            "Reset Instrument Connection",
-            "Are you sure you want to reset the instrument connection?"
+            "Reset Probe Plugin",
+            "Are you sure you want to reset the probe plugin selection?\nThis will disconnect and return to plugin selection."
         )
 
         if response:
@@ -595,14 +655,28 @@ class MainWindow(QMainWindow):
 
             # Reset state and refresh UI
             self.pluginChosen_probe = False
-            self.configure_probe(True) 
-                
+            self.configure_probe(True)
 
 
-    # TODO:
     def back_function_motion(self):
+        """Reset motion plugin selection - SIMPLIFIED VERSION using hot-swap."""
+        response = messagebox.askyesno(
+            "Reset Motion Plugin",
+            "Are you sure you want to reset the motion plugin selection?\nThis will disconnect and return to plugin selection."
+        )
 
-        pass
+        if response:
+            # Reset PluginSwitcherMotion to default (empty)
+            from scanner.plugin_switcher_motion import PluginSwitcherMotion
+            PluginSwitcherMotion.plugin_name = ""
+            PluginSwitcherMotion.basename = ""
+
+            # Swap to default motion plugin (will read the reset PluginSwitcherMotion)
+            self.scanner.scanner.swap_motion_plugin()
+
+            # Reset state and refresh UI
+            self.pluginChosen_motion = False
+            self.configure_motion(True)
     
     def setup_theme_toggle(self):
         self.theme_btn = QToolButton(self)

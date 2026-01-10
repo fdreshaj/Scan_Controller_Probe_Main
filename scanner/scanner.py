@@ -32,6 +32,10 @@ class Scanner():
         self.output_filepath = "vna_data5.bin"
         self.time_linearity_test = []
         self.signal_scope = signal_scope
+
+        # Settings cache for preserving plugin settings across re-instantiations
+        # Dictionary keyed by plugin class name
+        self._plugin_settings_cache = {}
         
         if PluginSwitcher.plugin_name == "":
             
@@ -426,8 +430,72 @@ class Scanner():
     def probe_controller(self) -> ProbeController:
         return self._probe_controller
 
+    def _save_plugin_settings(self, plugin) -> None:
+        """Save all settings (pre-connect and post-connect) for a plugin instance."""
+        plugin_class_name = plugin.__class__.__name__
+
+        settings_data = {
+            'pre_connect': [],
+            'post_connect': []
+        }
+
+        # Save pre-connect settings
+        for setting in plugin.settings_pre_connect:
+            settings_data['pre_connect'].append({
+                'display_label': setting.display_label,
+                'value': setting.get_value_as_string()
+            })
+
+        # Save post-connect settings
+        for setting in plugin.settings_post_connect:
+            settings_data['post_connect'].append({
+                'display_label': setting.display_label,
+                'value': setting.get_value_as_string()
+            })
+
+        self._plugin_settings_cache[plugin_class_name] = settings_data
+        print(f"Saved settings for plugin: {plugin_class_name}")
+
+    def _restore_plugin_settings(self, plugin) -> None:
+        """Restore saved settings to a plugin instance if available."""
+        plugin_class_name = plugin.__class__.__name__
+
+        if plugin_class_name not in self._plugin_settings_cache:
+            print(f"No cached settings found for plugin: {plugin_class_name}")
+            return
+
+        settings_data = self._plugin_settings_cache[plugin_class_name]
+
+        # Restore pre-connect settings
+        for i, setting in enumerate(plugin.settings_pre_connect):
+            if i < len(settings_data['pre_connect']):
+                cached = settings_data['pre_connect'][i]
+                if setting.display_label == cached['display_label']:
+                    try:
+                        setting.set_value_from_string(cached['value'])
+                        print(f"Restored pre-connect setting: {cached['display_label']} = {cached['value']}")
+                    except Exception as e:
+                        print(f"Error restoring setting {cached['display_label']}: {e}")
+
+        # Restore post-connect settings
+        for i, setting in enumerate(plugin.settings_post_connect):
+            if i < len(settings_data['post_connect']):
+                cached = settings_data['post_connect'][i]
+                if setting.display_label == cached['display_label']:
+                    try:
+                        setting.set_value_from_string(cached['value'])
+                        print(f"Restored post-connect setting: {cached['display_label']} = {cached['value']}")
+                    except Exception as e:
+                        print(f"Error restoring setting {cached['display_label']}: {e}")
+
+        print(f"Restored settings for plugin: {plugin_class_name}")
+
     def swap_probe_plugin(self):
-        """Swap probe plugin by reading from PluginSwitcher - preserves Scanner state."""
+        """Swap probe plugin by reading from PluginSwitcher - preserves Scanner state and settings."""
+        # Save current plugin settings before swapping
+        if hasattr(self, '_probe_controller') and self._probe_controller._probe:
+            self._save_plugin_settings(self._probe_controller._probe)
+
         # Disconnect old probe if connected
         if self._probe_controller.is_connected():
             self._probe_controller.disconnect()
@@ -441,6 +509,9 @@ class Scanner():
                 plugin_module = importlib.import_module(plugin_module_name)
                 plugin_class = getattr(plugin_module, PluginSwitcher.plugin_name)
                 new_plugin = plugin_class()
+
+                # Restore saved settings if available
+                self._restore_plugin_settings(new_plugin)
             except (ImportError, AttributeError) as e:
                 print(f"Error loading probe plugin: {e}")
                 new_plugin = PluginSwitcher()
@@ -450,7 +521,11 @@ class Scanner():
         print(f"Swapped to probe plugin: {new_plugin.__class__.__name__}")
 
     def swap_motion_plugin(self):
-        """Swap motion plugin by reading from PluginSwitcherMotion - preserves Scanner state."""
+        """Swap motion plugin by reading from PluginSwitcherMotion - preserves Scanner state and settings."""
+        # Save current plugin settings before swapping
+        if hasattr(self, '_motion_controller') and self._motion_controller._driver:
+            self._save_plugin_settings(self._motion_controller._driver)
+
         # Disconnect old motion controller if connected
         if self._motion_controller.is_connected():
             self._motion_controller.disconnect()
@@ -464,6 +539,9 @@ class Scanner():
                 motion_module = importlib.import_module(motion_module_name)
                 motion_class = getattr(motion_module, PluginSwitcherMotion.plugin_name)
                 new_plugin = motion_class()
+
+                # Restore saved settings if available
+                self._restore_plugin_settings(new_plugin)
             except (ImportError, AttributeError) as e:
                 print(f"Error loading motion plugin: {e}")
                 new_plugin = PluginSwitcherMotion()
