@@ -26,16 +26,13 @@ class ScannerQt(QObject):
         print("!!!!!!!!!!!!!!!!!!!!!! Closing Qt Scanner Object !!!!!!!!!!!!!!!!!!!!!!")
         self.scanner.close()
 
-    @Slot()
-    def update_motion(self) -> None:
-        """Update position display after movement commands."""
-        if self.scanner.motion_controller.is_connected():
-            try:
-                positions = self.scanner.motion_controller.get_current_positions()
-                for pos, signal in zip(positions, (self.current_position_x, self.current_position_y, self.current_position_z)):
-                    signal.emit(pos)
-            except Exception as e:
-                print(f"Error updating motion positions: {e}")
+    @Slot() #TODO:
+    # def update_motion(self) -> None:
+    #     if self.scanner.motion_controller.is_connected():
+    #         self.is_moving.emit(self.scanner.motion_controller.is_moving())
+    #         positions = self.scanner.motion_controller.get_current_positions()
+    #         for pos,signal in zip(positions, (self.current_position_x, self.current_position_y, self.current_position_z)):
+    #             signal.emit(pos)
 
 
     @Slot(float)
@@ -49,32 +46,26 @@ class ScannerQt(QObject):
     @Slot()
     def clicked_move_x_plus(self):
         self.scanner.motion_controller.move_relative({0:self.xy_move})
-        self.update_motion()
 
     @Slot()
     def clicked_move_x_minus(self):
         self.scanner.motion_controller.move_relative({0:-self.xy_move})
-        self.update_motion()
 
     @Slot()
     def clicked_move_y_plus(self):
         self.scanner.motion_controller.move_relative({1:self.xy_move})
-        self.update_motion()
 
     @Slot()
     def clicked_move_y_minus(self):
         self.scanner.motion_controller.move_relative({1:-self.xy_move})
-        self.update_motion()
 
     @Slot()
     def clicked_move_z_plus(self):
         self.scanner.motion_controller.move_relative({2:self.z_move})
-        self.update_motion()
 
     @Slot()
     def clicked_move_z_minus(self):
         self.scanner.motion_controller.move_relative({2:-self.z_move})
-        self.update_motion()
 
 
 
