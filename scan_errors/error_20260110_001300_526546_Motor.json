@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-01-10T00:13:00.526546",
+  "scope_time": 94.74769040005049,
+  "lane": "Motor",
+  "message": "Motor movement failed: 'bool' object is not subscriptable",
+  "error_type": "MOTOR_ERROR",
+  "additional_info": {
+    "point_index": 0,
+    "current_position": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "target_position": [
+      0.0,
+      1.0,
+      0.0
+    ],
+    "exception_type": "TypeError"
+  }
+}

@@ -37,7 +37,7 @@ class ScanFile(ScanFileControllerPlugin):
 
         self.add_setting_pre_connect(self.file_material_descrip)
         
-        self.add_setting_post_connect(self.progress)
+        
     
         
     
