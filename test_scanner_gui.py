@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
                     
             for setting in self.file_controller.settings_post_connect:
                     
-                    PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
+                    #PluginSettingString.set_value_from_string(self.file_controller.file_directory,f"{self.file_directory}")
                     plug = QPluginSetting(setting)
                     
                     self.ui.config_layout.addRow(setting.display_label, plug)
@@ -250,10 +250,7 @@ class MainWindow(QMainWindow):
             camera_pop_up.clicked.connect(self.camera_pop_up)
             self.ui.config_layout.addRow(camera_pop_up)
 
-            # Add back button for scan file pre-connect state
-            back_button = QPushButton("Back")
-            back_button.clicked.connect(self.go_back_file)
-            self.ui.config_layout.addRow(back_button)
+            
             
             
             
