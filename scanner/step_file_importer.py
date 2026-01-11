@@ -40,6 +40,7 @@ class StepFileProjector:
         self.surface_interpolator = None
         self.normal_interpolators = None
         self.bounds = None
+        self.step_triangles = None  # Store triangulated surface for visualization
 
     def load_step_file(self, file_path):
         """
@@ -79,32 +80,55 @@ class StepFileProjector:
                 mesh = BRepMesh_IncrementalMesh(shape, 0.5)
                 mesh.Perform()
 
-                # Extract mesh points and normals
+                # Extract mesh points, normals, and triangles for visualization
                 points = []
                 normals = []
+                triangles = []
 
                 explorer = TopExp_Explorer(shape, TopAbs_FACE)
+                vertex_offset = 0  # Track global vertex index across faces
+
                 while explorer.More():
                     face = explorer.Current()
                     location = TopLoc_Location()
                     facing = BRep_Tool.Triangulation(face, location)
 
                     if facing:
-                        # Extract vertices
+                        # Extract vertices for this face
+                        face_vertices = []
                         for i in range(1, facing.NbNodes() + 1):
                             pnt = facing.Node(i)
-                            points.append([pnt.X(), pnt.Y(), pnt.Z()])
+                            face_vertices.append([pnt.X(), pnt.Y(), pnt.Z()])
 
-                        # Extract normals (simplified)
-                        for i in range(len(points)):
+                        points.extend(face_vertices)
+
+                        # Extract triangles for this face
+                        for i in range(1, facing.NbTriangles() + 1):
+                            triangle = facing.Triangle(i)
+                            # Get vertex indices (1-based in OCC, convert to 0-based)
+                            n1, n2, n3 = triangle.Get()
+                            # Adjust indices to be relative to global points list
+                            triangles.append([
+                                vertex_offset + n1 - 1,
+                                vertex_offset + n2 - 1,
+                                vertex_offset + n3 - 1
+                            ])
+
+                        # Extract normals (simplified - one per vertex)
+                        for _ in range(len(face_vertices)):
                             normals.append([0, 0, 1])  # Placeholder
+
+                        vertex_offset += len(face_vertices)
 
                     explorer.Next()
 
                 self.mesh_points = np.array(points)
                 self.mesh_normals = np.array(normals)
+                self.step_triangles = np.array(triangles) if triangles else None
 
                 print(f"Loaded {len(self.mesh_points)} mesh points from STEP file")
+                if self.step_triangles is not None:
+                    print(f"Extracted {len(self.step_triangles)} triangles for surface rendering")
                 return True
 
             except ImportError:
@@ -157,10 +181,29 @@ class StepFileProjector:
                 else:
                     normals.append([0, 0, 1])
 
+        # Create triangles from grid structure for surface rendering
+        triangles = []
+        nx_pts = len(x)
+        ny_pts = len(y)
+        for i in range(ny_pts - 1):
+            for j in range(nx_pts - 1):
+                # Each grid cell creates two triangles
+                # Triangle 1: (i,j), (i+1,j), (i,j+1)
+                # Triangle 2: (i+1,j), (i+1,j+1), (i,j+1)
+                v1 = i * nx_pts + j
+                v2 = (i + 1) * nx_pts + j
+                v3 = i * nx_pts + (j + 1)
+                v4 = (i + 1) * nx_pts + (j + 1)
+
+                triangles.append([v1, v2, v3])
+                triangles.append([v2, v4, v3])
+
         self.mesh_points = points
         self.mesh_normals = np.array(normals)
+        self.step_triangles = np.array(triangles)
 
         print(f"Generated {len(self.mesh_points)} synthetic mesh points")
+        print(f"Generated {len(self.step_triangles)} triangles for surface rendering")
         return True
 
     def _build_surface_interpolator(self):
@@ -285,21 +328,57 @@ class StepFileProjector:
         """
         fig = plt.figure(figsize=(15, 5))
 
-        # Plot 1: Original surface mesh
+        # Plot 1: Original STEP file surface with mesh points overlaid
         ax1 = fig.add_subplot(131, projection='3d')
-        ax1.scatter(self.mesh_points[:, 0], self.mesh_points[:, 1],
-                   self.mesh_points[:, 2], c='lightblue', s=1, alpha=0.5)
+
+        # Render the solid surface if triangulation data is available
+        if self.step_triangles is not None:
+            # Create triangulated surface plot
+            ax1.plot_trisurf(
+                self.mesh_points[:, 0],
+                self.mesh_points[:, 1],
+                self.mesh_points[:, 2],
+                triangles=self.step_triangles,
+                color='lightblue',
+                alpha=0.7,
+                edgecolor='darkgray',
+                linewidth=0.1,
+                shade=True
+            )
+            # Overlay mesh points on the surface
+            ax1.scatter(self.mesh_points[:, 0], self.mesh_points[:, 1],
+                       self.mesh_points[:, 2], c='blue', s=0.5, alpha=0.6)
+        else:
+            # Fallback: just show mesh points if no triangulation available
+            ax1.scatter(self.mesh_points[:, 0], self.mesh_points[:, 1],
+                       self.mesh_points[:, 2], c='lightblue', s=1, alpha=0.5)
+
         ax1.set_xlabel('X (mm)')
         ax1.set_ylabel('Y (mm)')
         ax1.set_zlabel('Z (mm)')
-        ax1.set_title('Original Surface Mesh')
+        ax1.set_title('STEP File Surface with Mesh Points')
 
         # Plot 2: Surface with projected raster pattern
         ax2 = fig.add_subplot(132, projection='3d')
-        # Plot surface
-        ax2.scatter(self.mesh_points[:, 0], self.mesh_points[:, 1],
-                   self.mesh_points[:, 2], c='lightblue', s=1, alpha=0.3)
-        # Plot projected raster pattern
+
+        # Render the solid surface
+        if self.step_triangles is not None:
+            ax2.plot_trisurf(
+                self.mesh_points[:, 0],
+                self.mesh_points[:, 1],
+                self.mesh_points[:, 2],
+                triangles=self.step_triangles,
+                color='lightblue',
+                alpha=0.4,
+                edgecolor='none',
+                shade=True
+            )
+        else:
+            # Fallback: scatter plot of surface
+            ax2.scatter(self.mesh_points[:, 0], self.mesh_points[:, 1],
+                       self.mesh_points[:, 2], c='lightblue', s=1, alpha=0.3)
+
+        # Plot projected raster pattern on top
         ax2.scatter(projected_matrix[:, 0], projected_matrix[:, 1],
                    projected_matrix[:, 2], c='red', s=10, marker='o')
         ax2.set_xlabel('X (mm)')
