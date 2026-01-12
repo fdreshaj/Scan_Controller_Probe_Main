@@ -6,53 +6,125 @@ import serial
 from serial.tools import list_ports
 import pyvisa
 import threading
+
 class motion_controller_plugin(MotionControllerPlugin):
     def __init__(self):
-        
-        
-    
-        
         super().__init__()
-        
-        
-        self.rm = None         
-        self.driver = None     
-        self.resource_name = None 
+
+        # Scanner type selection for boundary checking
+        self.scanner_type = PluginSettingString(
+            "Scanner Type",
+            "N-d Scanner",
+            select_options=["Big Scanner", "N-d Scanner"],
+            restrict_selections=True
+        )
+
+        self.add_setting_pre_connect(self.scanner_type)
+
+        # Position tracking variables
+        self.current_position = [0.0, 0.0, 0.0]  # [X, Y, Z]
+        self.is_homed = False
+
+        # Boundary limits based on scanner type
+        self.x_min = 0.0
+        self.x_max = 0.0
+        self.y_min = 0.0
+        self.y_max = 0.0
+        self.z_min = 0.0
+        self.z_max = 0.0
+
+        self.rm = None
+        self.driver = None
+        self.resource_name = None
         self.timeout = 10000
         self.rm = pyvisa.ResourceManager()
         print("PyVISA ResourceManager initialized.")
         self.devices = self.rm.list_resources()
         
     def connect(self):
-        # self.rm = None         
-        # self.driver = None     
-        # self.resource_name = None 
-        # self.timeout = 10000
-        # self.rm = pyvisa.ResourceManager()
-        # print("PyVISA ResourceManager initialized.")
-        # devices = self.rm.list_resources()
+        """
+        Connect to GCODE motion controller with auto-detection.
+        Loops through available VISA devices until a GCODE device responds.
+        """
 
-        if self.devices:
-            print("Found the following VISA devices:")
-            for device in self.devices:
-                print(f"- {device}")
-            # self.resource_name = self.devices[2] 
-            # print(f"Selected device: {self.resource_name}")
-        else:
-            print("No VISA devices found.")
-            self.resource_name = None
-        # i=0
-        # for device in self.devices:
-        #     if device == "ASRL3::INSTR":
-        self.resource_name = self.devices[0]
-        self.driver = self.rm.open_resource(self.resource_name)
-        print(f"\nSuccessfully connected to: {self.resource_name}")
-        # i = i+1
-        # Set the timeout for read and write operations
-        self.driver.timeout = self.timeout
+        # Set boundary limits based on scanner type
+        scanner_type_str = self.scanner_type.value
+        if scanner_type_str == "Big Scanner":
+            # Big Scanner: 600x600 mm (X, Y only)
+            self.x_min = 0.0
+            self.x_max = 600.0
+            self.y_min = 0.0
+            self.y_max = 600.0
+            self.z_min = 0.0
+            self.z_max = 0.0  # No Z axis for Big Scanner
+            print("Scanner boundaries set: Big Scanner (600x600 mm, X-Y only)")
+        else:  # "N-d Scanner"
+            # N-d Scanner: 300x300x300 mm cube
+            self.x_min = 0.0
+            self.x_max = 300.0
+            self.y_min = 0.0
+            self.y_max = 300.0
+            self.z_min = 0.0
+            self.z_max = 300.0
+            print("Scanner boundaries set: N-d Scanner (300x300x300 mm cube)")
+
+        # Auto-detect GCODE device by trying all VISA resources
+        if not self.devices:
+            raise ConnectionError("No VISA devices found on system")
+
+        print(f"\nAttempting to auto-detect GCODE device on {len(self.devices)} available VISA resource(s)...")
+        print("Found the following VISA devices:")
+        for device in self.devices:
+            print(f"  - {device}")
+
+        connected = False
+        last_error = None
+
+        # Loop through all VISA devices until GCODE device found
+        for device in self.devices:
+            try:
+                print(f"\n  Trying {device}...")
+
+                # Attempt to open VISA resource
+                test_driver = self.rm.open_resource(device)
+                test_driver.timeout = self.timeout
+
+                # Send a test GCODE command to verify it's a GCODE device
+                # G91 sets relative positioning - a safe, standard GCODE command
+                test_driver.write("M115\n")  # Request firmware info
+                response = test_driver.read()
+
+                # Check if we got a valid GCODE response (contains "ok" or firmware info)
+                if "ok" in response.lower() or "firmware" in response.lower():
+                    print(f"  ✓ GCODE device detected on {device}")
+                    self.driver = test_driver
+                    self.resource_name = device
+                    connected = True
+                    break
+                else:
+                    # Not a GCODE device
+                    test_driver.close()
+                    print(f"  ✗ Not a GCODE device (unexpected response: {response[:50]})")
+
+            except (pyvisa.errors.VisaIOError, Exception) as e:
+                last_error = e
+                print(f"  ✗ Failed to connect: {e}")
+                try:
+                    test_driver.close()
+                except:
+                    pass
+                continue
+
+        if not connected:
+            error_msg = f"Failed to detect GCODE device on any available VISA resource. Last error: {last_error}"
+            print(f"\n✗ {error_msg}")
+            raise ConnectionError(error_msg)
+
+        print(f"\n✓ Successfully connected to GCODE device: {self.resource_name}")
         print(f"Communication timeout set to {self.timeout} ms.")
-        
-        response = self.send_gcode_command("G91") #Set to relative positioning
+
+        # Set to relative positioning mode
+        response = self.send_gcode_command("G91")
         
         
         
@@ -96,72 +168,75 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         
-        for key, val in move_pos.items():
-            raw_value = val
-            if key == 0:
-                
-                axis_num = 0
-            elif key == 1:
-                
-                axis_num=1
-                
-            elif key == 2:
-                axis_num = 2
-                
-            else:
-                print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y' or 2 for 'z'.")
-                
-                return None
-            break 
+        if not self.is_homed:
+            raise RuntimeError("Motors must be homed before absolute movement. Call home() first.")
 
-        busy_command = "M114"
-        if raw_value < 0:
-            is_negative = -1
-            raw_value = int(raw_value)
-        else:
-            is_negative = 1
-            raw_value = int(raw_value)
-        
-        if axis_num == 0:
-            move_string = f"X{raw_value}"
-            move_command = f"G0 {move_string}"
-            
-        elif axis_num == 1:
-            move_string = f"Y{raw_value}"
-            move_command = f"G0 {move_string}"
-        elif axis_num == 2:
-            # if z - raw_value < 50:
-            #     print("Error: Z-axis move exceeds safe limit of 50 mm from current position.")
-            #     return None
-            # else:
-            move_string = f"Z{raw_value}"
-            move_command = f"G0 {move_string}"
-        else:
-            print("Invalid axis number. Please choose 0 for 'x', 1 for 'y', or 2 for 'z'.")
-            return None
+        if not isinstance(move_pos, dict) or not move_pos:
+            raise ValueError("Error: Input must be a non-empty dictionary.")
 
-        self.response = self.send_gcode_command(move_command)
-        # busy_bit = self.send_gcode_command(busy_command)
-        # while busy_bit != 'ok':
-        #     busy_bit = self.send_gcode_command(busy_command)
-        movement = self.is_moving()
-        print(movement)
-        while movement[0] == True:
-            movement= self.is_moving()
+        # Check boundaries BEFORE executing movement
+        for axis_idx, target_pos in move_pos.items():
+            if axis_idx == 0:  # X axis
+                if target_pos < self.x_min or target_pos > self.x_max:
+                    raise ValueError(
+                        f"ENDSTOP VIOLATION: X-axis movement to {target_pos:.2f} mm "
+                        f"exceeds boundaries [{self.x_min:.2f}, {self.x_max:.2f}] mm. "
+                        f"Command stopped."
+                    )
+            elif axis_idx == 1:  # Y axis
+                if target_pos < self.y_min or target_pos > self.y_max:
+                    raise ValueError(
+                        f"ENDSTOP VIOLATION: Y-axis movement to {target_pos:.2f} mm "
+                        f"exceeds boundaries [{self.y_min:.2f}, {self.y_max:.2f}] mm. "
+                        f"Command stopped."
+                    )
+            elif axis_idx == 2:  # Z axis
+                if target_pos < self.z_min or target_pos > self.z_max:
+                    raise ValueError(
+                        f"ENDSTOP VIOLATION: Z-axis movement to {target_pos:.2f} mm "
+                        f"exceeds boundaries [{self.z_min:.2f}, {self.z_max:.2f}] mm. "
+                        f"Command stopped."
+                    )
+
+        # Execute movements for each axis
+        for axis_idx, target_pos in move_pos.items():
+            if axis_idx not in [0, 1, 2]:
+                print(f"Warning: Unexpected axis index '{axis_idx}'. Skipping.")
+                continue
+
+            raw_value = int(target_pos)
+
+            if axis_idx == 0:
+                move_command = f"G0 X{raw_value}"
+            elif axis_idx == 1:
+                move_command = f"G0 Y{raw_value}"
+            elif axis_idx == 2:
+                move_command = f"G0 Z{raw_value}"
+
+            # Send GCODE command
+            self.response = self.send_gcode_command(move_command)
+
+            # Wait for movement to complete
+            movement = self.is_moving()
             print(movement)
+            while movement[0] == True:
+                movement = self.is_moving()
+                print(movement)
+
+            # Update tracked position
+            self.current_position[axis_idx] = target_pos
+
+        print(f"Position updated: X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
     
 
-    def get_current_positions(self):
-        self.response = self.send_gcode_command("M114")
-        print(self.response)
-        while self.response == None:
-            self.response = self.send_gcode_command("M114")
-            print(self.response)
-        
-        split_response = self.response.split()
-        
-        print(split_response)
-        return split_response
+    def get_current_positions(self) -> tuple[float, ...]:
+        """
+        Return current tracked positions.
+
+        Returns:
+            tuple: (x, y, z) positions in mm
+        """
+        return tuple(self.current_position)
  
     def is_moving(self,axis=None) -> bool:
 
@@ -181,10 +256,12 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def get_endstop_minimums(self) -> tuple[float, ...]:
-        pass
-    
+        """Return minimum position limits for all axes."""
+        return (self.x_min, self.y_min, self.z_min)
+
     def get_endstop_maximums(self) -> tuple[float, ...]:
-        pass
+        """Return maximum position limits for all axes."""
+        return (self.x_max, self.y_max, self.z_max)
     
     def set_config(self, amps,idle_p, idle_time):
         pass
@@ -221,5 +298,42 @@ class motion_controller_plugin(MotionControllerPlugin):
     
 
 
-    def home(self):
+    def home(self, axes=None):
+        """
+        Home the specified axes and initialize position tracking.
+
+        After homing:
+        - Big Scanner: Position is (0, 0, 0)
+        - N-d Scanner: Position is (0, 0, 300) - Z starts at top
+
+        Args:
+            axes: List of axis indices to home (e.g., [0, 1, 2])
+
+        Returns:
+            Dictionary of homed positions
+        """
+        if axes is None:
+            axes = [0, 1, 2]  # Home all axes by default
+
+        print(f"Homing axes {axes}")
         response = self.send_gcode_command("G28")
+
+        # Wait for homing to complete
+        movement = self.is_moving()
+        while movement[0] == True:
+            movement = self.is_moving()
+
+        # Set initial position based on scanner type
+        scanner_type_str = self.scanner_type.value
+        if scanner_type_str == "N-d Scanner":
+            # N-d Scanner: Z starts at 300 mm (top of cube)
+            self.current_position = [0.0, 0.0, 300.0]
+            print("Homing complete. Position initialized to (0, 0, 300) mm")
+        else:
+            # Big Scanner: All axes at 0
+            self.current_position = [0.0, 0.0, 0.0]
+            print("Homing complete. Position initialized to (0, 0, 0) mm")
+
+        self.is_homed = True
+
+        return {axis: self.current_position[axis] for axis in axes}
