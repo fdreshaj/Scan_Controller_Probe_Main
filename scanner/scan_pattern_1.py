@@ -2,12 +2,13 @@
 
 
 import tkinter as tk
+from tkinter import ttk
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from tkinter import messagebox
 import numpy as np
 #from scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-
+import matplotlib.pyplot as plt
 
 class ScanPattern(ScanPatternControllerPlugin):
     _is_connected:bool
@@ -130,7 +131,11 @@ class ScanPattern(ScanPatternControllerPlugin):
            
             final_y.extend([r] * cols)
 
-        return np.array([final_y, final_x])
+
+        z = np.zeros(len(final_x))
+                
+        
+        return np.array([final_y, final_x,z])
     
     def rotate_points(self,matrix, theta_rad):
     
@@ -151,3 +156,96 @@ class ScanPattern(ScanPatternControllerPlugin):
         total_time = points*(time_to_point)
         total_time = total_time / (60*60)
         return np.round(total_time,3)
+    
+    
+    def apply_planar_slope_ui(self, matrix_xy):
+        # Initialize hidden root for the popup
+        root = tk.Tk()
+        root.withdraw()
+
+        popup = tk.Toplevel(root)
+        popup.title("Planar Slope Parameters")
+        popup.attributes('-topmost', True)
+        
+        self._result_matrix = None
+
+        def on_generate():
+            try:
+                # 1. Capture user inputs
+                s_size = float(entry_step.get())
+                s_deg = float(entry_slope.get())
+                s_dir = float(entry_dir.get())
+                z_off = float(entry_z0.get())
+                order = order_var.get()
+
+                # 2. Calculation
+                if order == "YX":
+                    y_idx, x_idx = matrix_xy
+                else:
+                    x_idx, y_idx = matrix_xy
+
+                x = x_idx * s_size
+                y = y_idx * s_size
+                slope = np.tan(np.deg2rad(s_deg))
+                phi = np.deg2rad(s_dir)
+                
+                # Planar Equation: z = z0 + slope * (x*cos(phi) + y*sin(phi))
+                z = z_off + slope * (x * np.cos(phi) + y * np.sin(phi))
+                
+                self._result_matrix = np.vstack((x, y, z))
+                
+                # 3. Print the matrix to console (as requested)
+                print("\n--- Generated Scan Matrix (XYZ) ---")
+                print(self._result_matrix)
+                print(f"Shape: {self._result_matrix.shape}\n")
+
+                # 4. Plot and Clean up
+                self.plot_scan_3d(self._result_matrix)
+                popup.destroy()
+                root.quit()
+                
+            except ValueError:
+                print("Error: Please enter numerical values in all fields.")
+
+        # --- UI Setup ---
+        fields = [("Step Size", "1.0"), ("Slope (deg)", "5.0"), 
+                  ("Slope Dir (deg)", "0"), ("Z Offset (z0)", "50.0")]
+        
+        entries = []
+        for i, (label_text, default_val) in enumerate(fields):
+            tk.Label(popup, text=label_text).grid(row=i, column=0, padx=15, pady=5, sticky="e")
+            e = tk.Entry(popup)
+            e.insert(0, default_val)
+            e.grid(row=i, column=1, padx=15, pady=5)
+            entries.append(e)
+
+        entry_step, entry_slope, entry_dir, entry_z0 = entries
+
+        tk.Label(popup, text="Order:").grid(row=4, column=0, sticky="e")
+        order_var = tk.StringVar(value="YX")
+        ttk.OptionMenu(popup, order_var, "YX", "YX", "XY").grid(row=4, column=1, sticky="w", padx=15)
+
+        tk.Button(popup, text="GENERATE & PRINT", command=on_generate, 
+                  bg="#27ae60", fg="white", font=('Arial', 10, 'bold'), height=2).grid(row=5, columnspan=2, pady=20)
+
+        # Run the UI loop
+        popup.mainloop() 
+        
+        # Cleanup and return to the main script
+        try: root.destroy()
+        except: pass
+        
+        return self._result_matrix
+
+    def plot_scan_3d(self, xyz, stride=1):
+        X, Y, Z = xyz[0, ::stride], xyz[1, ::stride], xyz[2, ::stride]
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot(X, Y, Z, color='blue', alpha=0.7)
+        ax.set_xlabel("X (mm)")
+        ax.set_ylabel("Y (mm)")
+        ax.set_zlabel("Z (mm)")
+        
+        # Keep aspect ratio equal to avoid visual distortion
+        ax.set_box_aspect([np.ptp(X), np.ptp(Y), np.ptp(Z)])
+        plt.show()
