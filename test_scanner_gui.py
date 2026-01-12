@@ -534,10 +534,11 @@ class MainWindow(QMainWindow):
             num_s_params = len(self.scanner.scanner.probe_controller.get_channel_names())
 
             # Calculate storage requirements
-            # Each complex number: 16 bytes (8 bytes real + 8 bytes imag)
+            # Data type: complex128 (16 bytes per complex number)
             # Storage format: /Data/{s_param}_real and /Data/{s_param}_imag
-            # Each dataset is float64 (8 bytes) with shape (num_points, num_freqs)
-            bytes_per_s_param = 2 * num_scan_points * num_frequencies * 8  # real and imag arrays
+            # Each complex128 = float64 real (8 bytes) + float64 imag (8 bytes) = 16 bytes
+            # Dataset shape: (num_points, num_freqs) for both real and imag
+            bytes_per_s_param = 2 * num_scan_points * num_frequencies * 8  # float64 real + float64 imag
             total_s_param_bytes = num_s_params * bytes_per_s_param
 
             # Coordinates storage: 3 arrays (x, y, z) of float64
