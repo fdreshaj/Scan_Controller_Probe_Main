@@ -248,7 +248,31 @@ Use this checklist for regression testing:
 
 ## Storage Calculation Reference
 
-### Formula:
+### How Number of Points is Calculated:
+
+The validation calculates the number of scan points **from the scan pattern settings**, not from the matrix (which hasn't been generated yet):
+
+```python
+# From scan pattern settings
+x_length = scan_controller.x_length.value  # mm
+y_length = scan_controller.y_length.value  # mm
+step_size = scan_controller.step_size.value  # mm
+
+# Calculate points (same formula as scan_pattern_1.py)
+x_points = int(x_length / step_size + 1)
+y_points = int(y_length / step_size + 1)
+num_scan_points = x_points × y_points
+```
+
+**Example:**
+- X length: 200 mm
+- Y length: 200 mm
+- Step size: 2 mm
+- X points: 200 / 2 + 1 = 101
+- Y points: 200 / 2 + 1 = 101
+- Total points: 101 × 101 = **10,201 points**
+
+### Full Storage Formula:
 
 ```python
 # S-parameter data (complex128)

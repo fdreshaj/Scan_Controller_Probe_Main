@@ -522,8 +522,16 @@ class MainWindow(QMainWindow):
             tuple: (required_bytes, available_bytes, is_sufficient)
         """
         try:
-            # Get scan parameters
-            num_scan_points = len(self.scan_controller.matrix[0])
+            # Calculate scan parameters from pattern settings (before matrix is generated)
+            # Get x_length, y_length, and step_size from scan pattern settings
+            x_length = self.scan_controller.x_length.value
+            y_length = self.scan_controller.y_length.value
+            step_size = self.scan_controller.step_size.value
+
+            # Calculate number of points (same formula as in scan_pattern_1.py connect())
+            x_points = int(x_length / step_size + 1)
+            y_points = int(y_length / step_size + 1)
+            num_scan_points = x_points * y_points
 
             # Get number of frequencies from probe controller
             if not self.scanner.scanner.probe_controller.is_connected():
@@ -635,12 +643,19 @@ class MainWindow(QMainWindow):
 
         if not is_sufficient:
             # Show error dialog
-            num_points = len(self.scan_controller.matrix[0])
+            # Calculate number of points from settings (matrix not generated yet)
+            x_length = self.scan_controller.x_length.value
+            y_length = self.scan_controller.y_length.value
+            step_size = self.scan_controller.step_size.value
+            x_points = int(x_length / step_size + 1)
+            y_points = int(y_length / step_size + 1)
+            num_points = x_points * y_points
+
             messagebox.showerror(
                 "Insufficient Disk Space",
                 f"The scan pattern requires more storage than available on disk.\n\n"
                 f"Scan Details:\n"
-                f"  • Number of scan points: {num_points:,}\n"
+                f"  • Scan pattern: {x_points} × {y_points} = {num_points:,} points\n"
                 f"  • Required storage: {format_bytes(required)}\n"
                 f"  • Available storage: {format_bytes(available)}\n"
                 f"  • Shortage: {format_bytes(required - available)}\n\n"
@@ -649,7 +664,15 @@ class MainWindow(QMainWindow):
             return False
 
         # Sufficient space - optionally show info
+        x_length = self.scan_controller.x_length.value
+        y_length = self.scan_controller.y_length.value
+        step_size = self.scan_controller.step_size.value
+        x_points = int(x_length / step_size + 1)
+        y_points = int(y_length / step_size + 1)
+        num_points = x_points * y_points
+
         print(f"✓ Scan storage validation passed:")
+        print(f"  Scan pattern: {x_points} × {y_points} = {num_points:,} points")
         print(f"  Required: {format_bytes(required)}")
         print(f"  Available: {format_bytes(available)}")
         print(f"  Remaining after scan: {format_bytes(available - required)}")
