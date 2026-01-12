@@ -35,6 +35,7 @@ import time
 from PySide6.QtWidgets import QToolButton, QDialog, QVBoxLayout, QLabel
 from scanner.Signal_Scope import SignalScope 
 from scanner.S_param_visualizer import VisualizerWindow
+import shutil
 #endregion
 
 class MainWindow(QMainWindow):
@@ -482,7 +483,13 @@ class MainWindow(QMainWindow):
         
     @Slot()
     def connect_pat(self):
-        
+        # Validate memory requirements before connecting
+        if not self.validate_scan_memory():
+            # Validation failed - keep in pre-connected state
+            print("Scan pattern connection aborted due to insufficient disk space")
+            return
+
+        # Memory validation passed - proceed with connection
         self.scan_controller.connect()
         self.configure_pattern(True)
     @Slot()
@@ -501,9 +508,144 @@ class MainWindow(QMainWindow):
     def get_file_dir(self):
 
         self.file_directory = fd.askdirectory()
-        
-        
-    
+
+    def calculate_scan_memory_requirements(self):
+        """
+        Calculate the memory required to store scan data and validate against available disk space.
+
+        Returns:
+            tuple: (required_bytes, available_bytes, is_sufficient)
+        """
+        try:
+            # Get scan parameters
+            num_scan_points = len(self.scan_controller.matrix[0])
+
+            # Get number of frequencies from probe controller
+            if not self.scanner.scanner.probe_controller.is_connected():
+                messagebox.showerror(
+                    "Probe Not Connected",
+                    "Please connect to probe controller before configuring scan pattern."
+                )
+                return None, None, False
+
+            num_frequencies = len(self.scanner.scanner.probe_controller.get_xaxis_coords())
+
+            # Get number of S-parameters
+            num_s_params = len(self.scanner.scanner.probe_controller.get_channel_names())
+
+            # Calculate storage requirements
+            # Each complex number: 16 bytes (8 bytes real + 8 bytes imag)
+            # Storage format: /Data/{s_param}_real and /Data/{s_param}_imag
+            # Each dataset is float64 (8 bytes) with shape (num_points, num_freqs)
+            bytes_per_s_param = 2 * num_scan_points * num_frequencies * 8  # real and imag arrays
+            total_s_param_bytes = num_s_params * bytes_per_s_param
+
+            # Coordinates storage: 3 arrays (x, y, z) of float64
+            coords_bytes = 3 * num_scan_points * 8
+
+            # Frequencies array: float64
+            freq_bytes = num_frequencies * 8
+
+            # Metadata overhead (attributes, group structures, etc.)
+            metadata_bytes = 50 * 1024  # 50 KB estimate for metadata
+
+            # Camera image (if present, estimate ~500 KB for PNG)
+            camera_bytes = 500 * 1024 if hasattr(self, 'camera') and self.camera else 0
+
+            # Total required storage
+            total_required_bytes = (
+                total_s_param_bytes +
+                coords_bytes +
+                freq_bytes +
+                metadata_bytes +
+                camera_bytes
+            )
+
+            # Add 10% safety margin
+            total_required_bytes = int(total_required_bytes * 1.1)
+
+            # Get file save location
+            save_directory = None
+            for setting in self.file_controller.settings_pre_connect:
+                if "Directory" in setting.display_label or "directory" in setting.display_label:
+                    save_directory = setting.value
+                    break
+
+            if not save_directory:
+                # Try to get from filename path
+                for setting in self.file_controller.settings_pre_connect:
+                    if "Filename" in setting.display_label or "filename" in setting.display_label:
+                        filename = setting.value
+                        if filename:
+                            import os
+                            save_directory = os.path.dirname(filename) or os.getcwd()
+                            break
+
+            if not save_directory:
+                save_directory = "."  # Current directory as fallback
+
+            # Get available disk space
+            disk_stat = shutil.disk_usage(save_directory)
+            available_bytes = disk_stat.free
+
+            # Check if sufficient space available
+            is_sufficient = available_bytes > total_required_bytes
+
+            return total_required_bytes, available_bytes, is_sufficient
+
+        except Exception as e:
+            print(f"Error calculating memory requirements: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, None, False
+
+    def validate_scan_memory(self):
+        """
+        Validate that sufficient disk space is available for the scan.
+        Show error dialog if insufficient space.
+
+        Returns:
+            bool: True if sufficient space, False otherwise
+        """
+        required, available, is_sufficient = self.calculate_scan_memory_requirements()
+
+        if required is None:
+            # Error occurred during calculation
+            return False
+
+        # Convert bytes to human-readable format
+        def format_bytes(bytes_val):
+            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                if bytes_val < 1024.0:
+                    return f"{bytes_val:.2f} {unit}"
+                bytes_val /= 1024.0
+            return f"{bytes_val:.2f} PB"
+
+        if not is_sufficient:
+            # Show error dialog
+            num_points = len(self.scan_controller.matrix[0])
+            messagebox.showerror(
+                "Insufficient Disk Space",
+                f"The scan pattern requires more storage than available on disk.\n\n"
+                f"Scan Details:\n"
+                f"  • Number of scan points: {num_points:,}\n"
+                f"  • Required storage: {format_bytes(required)}\n"
+                f"  • Available storage: {format_bytes(available)}\n"
+                f"  • Shortage: {format_bytes(required - available)}\n\n"
+                f"Please reduce the number of scan points or free up disk space."
+            )
+            return False
+
+        # Sufficient space - optionally show info
+        print(f"✓ Scan storage validation passed:")
+        print(f"  Required: {format_bytes(required)}")
+        print(f"  Available: {format_bytes(available)}")
+        print(f"  Remaining after scan: {format_bytes(available - required)}")
+
+        return True
+
+
+
     ## Fix after 
     def plot_btn(self):
         for i in reversed(range(self.ui.plot_config_wid.rowCount())):
