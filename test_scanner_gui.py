@@ -43,7 +43,12 @@ class MainWindow(QMainWindow):
     ui: Ui_MainWindow
     pluginChosen_probe = False
     pluginChosen_motion = False
-    
+
+    # Debug mode for testing disk space validation
+    # Set to True to simulate low disk space scenarios
+    DEBUG_DISK_SPACE_TEST = False
+    DEBUG_SIMULATED_DISK_SPACE_MB = 100  # Simulated available space in MB
+
     ## SETUP FUNCTIONS
     #region Setup
     def __init__(self) -> None:
@@ -588,6 +593,12 @@ class MainWindow(QMainWindow):
             # Get available disk space
             disk_stat = shutil.disk_usage(save_directory)
             available_bytes = disk_stat.free
+
+            # DEBUG MODE: Override available space for testing
+            if self.DEBUG_DISK_SPACE_TEST:
+                available_bytes = self.DEBUG_SIMULATED_DISK_SPACE_MB * 1024 * 1024
+                print(f"⚠️  DEBUG MODE: Simulating {self.DEBUG_SIMULATED_DISK_SPACE_MB} MB available disk space")
+                print(f"   Actual available space: {disk_stat.free / (1024**3):.2f} GB")
 
             # Check if sufficient space available
             is_sufficient = available_bytes > total_required_bytes
