@@ -223,8 +223,10 @@ class motion_controller_plugin(MotionControllerPlugin):
                 movement = self.is_moving()
                 print(movement)
 
-            # Update tracked position
-            self.current_position[axis_idx] = target_pos
+        # Only update tracked positions after ALL movements complete successfully
+        for axis_idx, target_pos in move_pos.items():
+            if axis_idx in [0, 1, 2]:
+                self.current_position[axis_idx] = target_pos
 
         print(f"Position updated: X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
     

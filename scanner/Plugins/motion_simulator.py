@@ -93,13 +93,15 @@ class motion_controller_plugin(MotionControllerPlugin):
         if not isinstance(move_dist, dict) or not move_dist:
             raise ValueError("Error: Input must be a non-empty dictionary.")
 
-        # Calculate target positions and check boundaries
+        # Calculate target positions and check boundaries FIRST
+        target_positions = {}
         for axis_idx, distance in move_dist.items():
             if axis_idx not in [0, 1, 2]:
                 print(f"Warning: Unexpected axis index '{axis_idx}'. Skipping.")
                 continue
 
             target_pos = self.current_position[axis_idx] + distance
+            target_positions[axis_idx] = target_pos
 
             # Check boundaries
             if axis_idx == 0:  # X axis
@@ -124,7 +126,8 @@ class motion_controller_plugin(MotionControllerPlugin):
                         f"Command stopped."
                     )
 
-            # Update position
+        # Only update positions after ALL boundary checks pass
+        for axis_idx, target_pos in target_positions.items():
             self.current_position[axis_idx] = target_pos
 
         print(f"Simulator: Moved relative {move_dist}")
