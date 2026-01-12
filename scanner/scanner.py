@@ -307,8 +307,13 @@ class Scanner():
                         if self.signal_scope:
                             self.signal_scope.set_lane_idle("Motor")
 
-                        error_msg = f"Motor movement failed: {str(e)}"
+                        # Check if this is specifically a boundary/endstop violation
+                        is_endstop = "ENDSTOP VIOLATION" in str(e)
+                        error_category = "Endstop Violation" if is_endstop else "Motor Failure"
+                        error_msg = f"{error_category}: {str(e)}"
+                        
                         print(error_msg)
+
                         if self.signal_scope:
                             self.signal_scope.freeze_on_error(
                                 error_msg,
@@ -317,7 +322,8 @@ class Scanner():
                                     "point_index": i,
                                     "current_position": matrix[:, i].tolist(),
                                     "target_position": matrix[:, i+1].tolist(),
-                                    "exception_type": type(e).__name__
+                                    "exception_type": type(e).__name__,
+                                    "is_boundary_violation": is_endstop # Added specific flag for scope
                                 }
                             )
                         break

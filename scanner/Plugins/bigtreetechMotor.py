@@ -148,10 +148,44 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
 
 
-    def move_relative(self, move_dist: dict[int, float]) -> dict[int, float] | None:
-        pass
+    def move_absolute(self, move_dist: dict[int, float]) -> dict[int, float] | None:
+        
+        if not self.is_homed:
+            raise RuntimeError("Motors must be homed before movement to establish a coordinate system.")
 
-    def move_absolute(self, move_pos: dict[int, float]) -> dict[int, float] | None:
+        
+        for axis_idx, delta in move_dist.items():
+            new_potential_pos = self.current_position[axis_idx] + delta
+            
+            if axis_idx == 0:  # X axis
+                if new_potential_pos < self.x_min or new_potential_pos > self.x_max:
+                    raise ValueError(f"LIMIT VIOLATION: X move of {delta} would reach {new_potential_pos}, exceeding [{self.x_min}, {self.x_max}]")
+            elif axis_idx == 1:  # Y axis
+                if new_potential_pos < self.y_min or new_potential_pos > self.y_max:
+                    raise ValueError(f"LIMIT VIOLATION: Y move of {delta} would reach {new_potential_pos}, exceeding [{self.y_min}, {self.y_max}]")
+            elif axis_idx == 2:  # Z axis
+                if new_potential_pos < self.z_min or new_potential_pos > self.z_max:
+                    raise ValueError(f"LIMIT VIOLATION: Z move of {delta} would reach {new_potential_pos}, exceeding [{self.z_min}, {self.z_max}]")
+
+        
+        for axis_idx, delta in move_dist.items():
+            axis_map = {0: 'X', 1: 'Y', 2: 'Z'}
+            if axis_idx in axis_map:
+                # Ensure the controller is in relative mode (G91)
+                self.send_gcode_command("G91")
+                
+                # Send the distance as the coordinate in GCODE
+                #move_command = f"G0 {axis_map[axis_idx]}{delta}" # Modified command in your move loop
+                move_command = f"G0 {axis_map[axis_idx]}{delta} F2000" # f2000 = 2000 mm/min
+                self.send_gcode_command(move_command)
+                
+                # 3. UPDATE TRACKING: Increment the current position by the distance moved
+                self.current_position[axis_idx] += delta
+
+        print(f"Position updated (Relative): X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
+        return {i: self.current_position[i] for i in range(3)}
+     
+    def move_relative(self, move_pos: dict[int, float]) -> dict[int, float] | None:
         # split_response = self.get_current_positions()
         
         # if self.response == 'ok':
@@ -168,68 +202,68 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         
-        if not self.is_homed:
-            raise RuntimeError("Motors must be homed before absolute movement. Call home() first.")
+        # if not self.is_homed:
+        #     raise RuntimeError("Motors must be homed before absolute movement. Call home() first.")
 
-        if not isinstance(move_pos, dict) or not move_pos:
-            raise ValueError("Error: Input must be a non-empty dictionary.")
+        # if not isinstance(move_pos, dict) or not move_pos:
+        #     raise ValueError("Error: Input must be a non-empty dictionary.")
 
-        # Check boundaries BEFORE executing movement
-        for axis_idx, target_pos in move_pos.items():
-            if axis_idx == 0:  # X axis
-                if target_pos < self.x_min or target_pos > self.x_max:
-                    raise ValueError(
-                        f"ENDSTOP VIOLATION: X-axis movement to {target_pos:.2f} mm "
-                        f"exceeds boundaries [{self.x_min:.2f}, {self.x_max:.2f}] mm. "
-                        f"Command stopped."
-                    )
-            elif axis_idx == 1:  # Y axis
-                if target_pos < self.y_min or target_pos > self.y_max:
-                    raise ValueError(
-                        f"ENDSTOP VIOLATION: Y-axis movement to {target_pos:.2f} mm "
-                        f"exceeds boundaries [{self.y_min:.2f}, {self.y_max:.2f}] mm. "
-                        f"Command stopped."
-                    )
-            elif axis_idx == 2:  # Z axis
-                if target_pos < self.z_min or target_pos > self.z_max:
-                    raise ValueError(
-                        f"ENDSTOP VIOLATION: Z-axis movement to {target_pos:.2f} mm "
-                        f"exceeds boundaries [{self.z_min:.2f}, {self.z_max:.2f}] mm. "
-                        f"Command stopped."
-                    )
+        # # Check boundaries BEFORE executing movement
+        # for axis_idx, target_pos in move_pos.items():
+        #     if axis_idx == 0:  # X axis
+        #         if target_pos < self.x_min or target_pos > self.x_max:
+        #             raise ValueError(
+        #                 f"ENDSTOP VIOLATION: X-axis movement to {target_pos:.2f} mm "
+        #                 f"exceeds boundaries [{self.x_min:.2f}, {self.x_max:.2f}] mm. "
+        #                 f"Command stopped."
+        #             )
+        #     elif axis_idx == 1:  # Y axis
+        #         if target_pos < self.y_min or target_pos > self.y_max:
+        #             raise ValueError(
+        #                 f"ENDSTOP VIOLATION: Y-axis movement to {target_pos:.2f} mm "
+        #                 f"exceeds boundaries [{self.y_min:.2f}, {self.y_max:.2f}] mm. "
+        #                 f"Command stopped."
+        #             )
+        #     elif axis_idx == 2:  # Z axis
+        #         if target_pos < self.z_min or target_pos > self.z_max:
+        #             raise ValueError(
+        #                 f"ENDSTOP VIOLATION: Z-axis movement to {target_pos:.2f} mm "
+        #                 f"exceeds boundaries [{self.z_min:.2f}, {self.z_max:.2f}] mm. "
+        #                 f"Command stopped."
+        #             )
 
-        # Execute movements for each axis
-        for axis_idx, target_pos in move_pos.items():
-            if axis_idx not in [0, 1, 2]:
-                print(f"Warning: Unexpected axis index '{axis_idx}'. Skipping.")
-                continue
+        # # Execute movements for each axis
+        # for axis_idx, target_pos in move_pos.items():
+        #     if axis_idx not in [0, 1, 2]:
+        #         print(f"Warning: Unexpected axis index '{axis_idx}'. Skipping.")
+        #         continue
 
-            raw_value = int(target_pos)
+        #     raw_value = int(target_pos)
 
-            if axis_idx == 0:
-                move_command = f"G0 X{raw_value}"
-            elif axis_idx == 1:
-                move_command = f"G0 Y{raw_value}"
-            elif axis_idx == 2:
-                move_command = f"G0 Z{raw_value}"
+        #     if axis_idx == 0:
+        #         move_command = f"G0 X{raw_value}"
+        #     elif axis_idx == 1:
+        #         move_command = f"G0 Y{raw_value}"
+        #     elif axis_idx == 2:
+        #         move_command = f"G0 Z{raw_value}"
 
-            # Send GCODE command
-            self.response = self.send_gcode_command(move_command)
+        #     # Send GCODE command
+        #     self.response = self.send_gcode_command(move_command)
 
-            # Wait for movement to complete
-            movement = self.is_moving()
-            print(movement)
-            while movement[0] == True:
-                movement = self.is_moving()
-                print(movement)
+        #     # Wait for movement to complete
+        #     movement = self.is_moving()
+        #     print(movement)
+        #     while movement[0] == True:
+        #         movement = self.is_moving()
+        #         print(movement)
 
-        # Only update tracked positions after ALL movements complete successfully
-        for axis_idx, target_pos in move_pos.items():
-            if axis_idx in [0, 1, 2]:
-                self.current_position[axis_idx] = target_pos
+        # # Only update tracked positions after ALL movements complete successfully
+        # for axis_idx, target_pos in move_pos.items():
+        #     if axis_idx in [0, 1, 2]:
+        #         self.current_position[axis_idx] = target_pos
 
-        print(f"Position updated: X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
-    
+        # print(f"Position updated: X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
+        pass
 
     def get_current_positions(self) -> tuple[float, ...]:
         """

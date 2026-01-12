@@ -47,7 +47,7 @@ class MainWindow(QMainWindow):
     # Debug mode for testing disk space validation
     # Set to True to simulate low disk space scenarios
     DEBUG_DISK_SPACE_TEST = False
-    DEBUG_SIMULATED_DISK_SPACE_MB = 100  # Simulated available space in MB
+    DEBUG_SIMULATED_DISK_SPACE_MB = 5  # Simulated available space in MB
 
     ## SETUP FUNCTIONS
     #region Setup
