@@ -5,7 +5,9 @@ from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, Pl
 import serial
 from serial.tools import list_ports
 from scanner.Plugins import geckoInstructions
-
+import time
+import tkinter as tk
+from tkinter import messagebox
 
 class motion_controller_plugin(MotionControllerPlugin):
     
@@ -83,7 +85,12 @@ class motion_controller_plugin(MotionControllerPlugin):
             stopbits=serial.STOPBITS_ONE,
             timeout=1 #seconds
         )
-       
+        self.x_min = 0.0
+        self.x_max = 600.0
+        self.y_min = 0.0
+        self.y_max = 600.0
+        self.z_min = 0.0
+        self.z_max = 0.0 
         amp_val = PluginSettingFloat.get_value_as_string(self.amps)
         amp_float = float(amp_val)
         idle_percent = PluginSettingFloat.get_value_as_string(self.idle_Percent)
@@ -300,9 +307,54 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def home(self, axes=None):
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x22, 0x00, 0x00])) #home x
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00])) #home y
+        busy_bit = self.is_moving()
+        while busy_bit[0] and busy_bit[1] == True:
+            busy_bit = self.is_moving()
         
+
+        # root = tk.Tk()
+        # root.withdraw() # Keeps the main blank window from appearing
+        
+        # # 2. Trigger the Native OS Message Box
+        # # This will pause the script until the user clicks 'OK'
+        # messagebox.showwarning(
+        #     "Manual Home Requirement", 
+        #     "The motor must be PHYSICALLY CENTERED on X and Y before proceeding."
+        # )
+        
+        # # Destroy the hidden root after use
+        # root.destroy()
+        
+        # position_x = 300
+        # position_y = 300 
+        temp_vel = PluginSettingInteger.get_value_as_string(self.travel_velocity)
+
+        PluginSettingFloat.set_value_from_string(self.travel_velocity, "10")
+        
+
+        self.set_velocity()
+
+        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x02, 0x00, 0x00]))
+
+        busy_bit = self.is_moving()
+        while busy_bit[0] == True:
+            busy_bit = self.is_moving()
+
+        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00]))
+        self.move_absolute({0:-2})
+
+        
+        
+        busy_bit = self.is_moving()
+        while busy_bit[1] == True:
+            busy_bit = self.is_moving()
+
+
+
+        PluginSettingFloat.set_value_from_string(self.travel_velocity, f"{temp_vel}")
+            
+        self.set_velocity()
+
     def get_current_positions(self):
       
         query_long_command = bytes([0x08, 0x00])
@@ -347,7 +399,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         else:
             is_moving_y = True
         
-        movement = [is_moving_x,is_moving_y]
+        movement = [is_moving_x,is_moving_y,False]
         return movement
         
          

@@ -383,8 +383,8 @@ class OutInsn(AxisInsn):
 # print(f"motioninsn {motion_insn.get_binary():#010x}")
 
 
-# home_insn = HomeInsn(line=0, axis=0, chain=True)
-# print(f"HomeInsn (HOME X, chained): {home_insn.get_binary():#010x}")
+home_insn = HomeInsn(line=0, axis=1, chain=True)
+print(f"HomeInsn (HOME X, chained): {home_insn.get_binary():#010x}")
 
 # # ConfigureInsn: X CONFIGURE 5.0 AMPS, IDLE AT 50% AFTER 10.0 SECONDS
 # configure_insn = ConfigureInsn(line=0, axis=1, i=1.5, p=15, s=1.5)
