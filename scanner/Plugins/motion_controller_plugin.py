@@ -8,15 +8,25 @@ from scanner.Plugins import geckoInstructions
 
 
 class motion_controller_plugin(MotionControllerPlugin):
-    
+
     def __init__(self):
-        
-        
-        # TODO: # error in error out settings  and Serial Port IN Serial Port OUT connection settings 
-        
-        
+
+
+        # TODO: # error in error out settings  and Serial Port IN Serial Port OUT connection settings
+
+
         super().__init__()
-        
+
+        # Position tracking and safety state
+        self.current_position = [0.0, 0.0]  # [X, Y] position tracking
+        self.is_homed = False
+
+        # Boundary limits (set based on scanner type during connect)
+        self.x_min = 0.0
+        self.x_max = 0.0
+        self.y_min = 0.0
+        self.y_max = 0.0
+
         ports = [port.device for port in list_ports.comports()]
         
         
@@ -27,12 +37,20 @@ class motion_controller_plugin(MotionControllerPlugin):
             ports = ["NO_PORTS_FOUND"]
         # PluginSettingString with options
         self.motion_address = PluginSettingString(
-            "Select Address", 
+            "Select Address",
             ports[0],
             select_options=ports,
             restrict_selections=True
         )
-        
+
+        # Scanner type selection for boundary checking
+        self.scanner_type = PluginSettingString(
+            "Scanner Type",
+            "N-d Scanner",
+            select_options=["Big Scanner", "N-d Scanner"],
+            restrict_selections=True
+        )
+
         self.axis_settings = PluginSettingString("Choose Axis","X",select_options=["X","Y","Z","W"],restrict_selections=True)
         
         self.position_multiplier = PluginSettingFloat("Position Multiplier",39.4)
@@ -52,7 +70,9 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
         self.add_setting_pre_connect(self.motion_address)
-        
+
+        self.add_setting_pre_connect(self.scanner_type)
+
         self.add_setting_pre_connect(self.axis_settings)
         
         self.add_setting_pre_connect(self.position_multiplier) #2
@@ -74,9 +94,9 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def connect(self):
-        
+
         port_name = self.motion_address.value
-       
+
         self.serial_port = serial.Serial(
             port=port_name,
             baudrate=115200,
@@ -85,6 +105,23 @@ class motion_controller_plugin(MotionControllerPlugin):
             stopbits=serial.STOPBITS_ONE,
             timeout=1 #seconds
         )
+
+        # Set boundary limits based on scanner type
+        scanner_type_str = self.scanner_type.value
+        if scanner_type_str == "Big Scanner":
+            # Big Scanner: 600x600 mm (X, Y only)
+            self.x_min = 0.0
+            self.x_max = 600.0
+            self.y_min = 0.0
+            self.y_max = 600.0
+            print("Scanner boundaries set: Big Scanner (600x600 mm)")
+        else:  # "N-d Scanner"
+            # N-d Scanner: 300x300 mm
+            self.x_min = 0.0
+            self.x_max = 300.0
+            self.y_min = 0.0
+            self.y_max = 300.0
+            print("Scanner boundaries set: N-d Scanner (300x300 mm)")
        
         amp_val = PluginSettingFloat.get_value_as_string(self.amps)
         amp_float = float(amp_val)
@@ -248,75 +285,138 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass  
     
     def move_absolute(self, move_pos):
-       
-       
-       
+        """
+        Move to an absolute position with safety checks.
+
+        Requires homing before movement to establish coordinate system.
+        Checks boundary limits before executing movement.
+
+        Args:
+            move_pos: Dictionary with axis index as key and position as value
+                      e.g., {0: 100.0} for X axis, {1: 50.0} for Y axis
+        """
+        # Safety check: Require homing before movement
+        if not self.is_homed:
+            raise RuntimeError("Motors must be homed before movement. Call home() first.")
+
+        if not isinstance(move_pos, dict) or not move_pos:
+            raise ValueError("Error: Input must be a non-empty dictionary.")
+
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
-        
-        is_negative = 0
-        
-        raw_value = 0
-        axis_num = 0
-        
-        if not isinstance(move_pos, dict) or not move_pos:
-            print("Error: Input must be a non-empty dictionary.")
-            
-        
-        for key, val in move_pos.items():
-            raw_value = val
-            if key == 0:
-                
-                axis_num = 0
-            elif key == 1:
-                
-                axis_num=1
-            else:
-                print(f"Warning: Unexpected dictionary key '{key}'. Expected 0 for 'x' or 1 for 'y'.")
-                
-                axis_num = 1
-            break 
 
-        
-        if raw_value < 0:
-            is_negative = -1
-            raw_value = int(abs(raw_value))
-        else:
-            is_negative = 1
-            raw_value = int(abs(raw_value))
-        
-        
-        
-        raw_value = int(raw_value*pos_mult*micro_mult)
-        
-        motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_value,chain=False)
-        binary_x = motion_insn.get_binary()
-    
-        high_first_pair = (binary_x >> 24) & 0xFF
-        high_last_pair = (binary_x >> 16) & 0xFF
-        low_first_pair = (binary_x >> 8) & 0xFF
-        low_last_pair = binary_x & 0xFF
-        
-        self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+        # Process each axis movement
+        for axis_num, target_pos in move_pos.items():
+            if axis_num not in [0, 1]:
+                print(f"Warning: Unexpected axis index '{axis_num}'. Expected 0 for X or 1 for Y.")
+                continue
+
+            # Safety check: Boundary validation
+            if axis_num == 0:  # X axis
+                if target_pos < self.x_min or target_pos > self.x_max:
+                    raise ValueError(
+                        f"LIMIT VIOLATION: X-axis movement to {target_pos:.2f} mm "
+                        f"exceeds boundaries [{self.x_min:.2f}, {self.x_max:.2f}] mm. "
+                        f"Command stopped."
+                    )
+            elif axis_num == 1:  # Y axis
+                if target_pos < self.y_min or target_pos > self.y_max:
+                    raise ValueError(
+                        f"LIMIT VIOLATION: Y-axis movement to {target_pos:.2f} mm "
+                        f"exceeds boundaries [{self.y_min:.2f}, {self.y_max:.2f}] mm. "
+                        f"Command stopped."
+                    )
+
+            # Calculate relative movement from current position
+            delta = target_pos - self.current_position[axis_num]
+
+            # Determine sign for relative movement
+            if delta < 0:
+                is_negative = -1
+                raw_value = int(abs(delta))
+            else:
+                is_negative = 1
+                raw_value = int(abs(delta))
+
+            # Apply position and microstep multipliers
+            raw_value = int(raw_value * pos_mult * micro_mult)
+
+            # Create and send move instruction
+            motion_insn = geckoInstructions.MoveInsn(line=0, axis=axis_num, relative=is_negative, n=raw_value, chain=False)
+            binary = motion_insn.get_binary()
+
+            high_first_pair = (binary >> 24) & 0xFF
+            high_last_pair = (binary >> 16) & 0xFF
+            low_first_pair = (binary >> 8) & 0xFF
+            low_last_pair = binary & 0xFF
+
+            self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+
+            # Update tracked position after sending command
+            self.current_position[axis_num] = target_pos
+
+        print(f"Position updated: X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}")
         
         
         
     def home(self, axes=None):
-        pass
+        """
+        Home the XY axes simultaneously using the chain feature.
+
+        The chain bit allows multiple axes to start homing at the same time.
+        X axis is sent with chain=True, Y axis with chain=False (last in sequence).
+
+        After homing, position is initialized to (0, 0).
+        """
+        print("Homing XY axes simultaneously...")
+
+        # Create HOME instruction for X axis with chain=True (to chain with Y)
+        home_insn_x = geckoInstructions.HomeInsn(line=0, axis=0, chain=True)
+        # Create HOME instruction for Y axis with chain=False (last in sequence)
+        home_insn_y = geckoInstructions.HomeInsn(line=0, axis=1, chain=False)
+
+        binary_x = home_insn_x.get_binary()
+        binary_y = home_insn_y.get_binary()
+
+        # Extract bytes for X axis (little endian formatting)
+        high_first_pair_x = (binary_x >> 24) & 0xFF
+        high_last_pair_x = (binary_x >> 16) & 0xFF
+        low_first_pair_x = (binary_x >> 8) & 0xFF
+        low_last_pair_x = binary_x & 0xFF
+
+        # Extract bytes for Y axis (little endian formatting)
+        high_first_pair_y = (binary_y >> 24) & 0xFF
+        high_last_pair_y = (binary_y >> 16) & 0xFF
+        low_first_pair_y = (binary_y >> 8) & 0xFF
+        low_last_pair_y = binary_y & 0xFF
+
+        # Send both HOME commands (X chained, then Y to complete the chain)
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_x, high_first_pair_x, low_last_pair_x, low_first_pair_x]))
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair_y, high_first_pair_y, low_last_pair_y, low_first_pair_y]))
+
+        print(f"HOME X (chained): {binary_x:#010x}")
+        print(f"HOME Y: {binary_y:#010x}")
+
+        # Wait for homing to complete
+        movement = self.is_moving()
+        while movement[0] or movement[1]:
+            movement = self.is_moving()
+
+        # Initialize position to origin after homing
+        self.current_position = [0.0, 0.0]
+        self.is_homed = True
+
+        print("Homing complete. Position initialized to (0.0, 0.0)")
+        return {0: 0.0, 1: 0.0}
         
     def get_current_positions(self):
-      
-        query_long_command = bytes([0x08, 0x00])
-        
-        self.serial_port.write(query_long_command)
-        
-        response = self.serial_port.read(22)
-        print(f"Response: \n \n { response } \n \n")
-        
-        self.tokens = list(response)
-        print(self.tokens)
-        
-        print(f"Position {self.tokens[8],self.tokens[9],self.tokens[10]}")
+        """
+        Return current tracked positions.
+
+        Returns:
+            tuple: (x, y) positions in mm
+        """
+        return tuple(self.current_position)
         
                 
             
@@ -353,11 +453,12 @@ class motion_controller_plugin(MotionControllerPlugin):
         
          
     def get_endstop_minimums(self):
-        pass
+        """Return minimum position limits for all axes."""
+        return (self.x_min, self.y_min)
 
-    
     def get_endstop_maximums(self):
-        pass
+        """Return maximum position limits for all axes."""
+        return (self.x_max, self.y_max)
     
    
         
