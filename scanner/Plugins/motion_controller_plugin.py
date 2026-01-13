@@ -302,8 +302,28 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def home(self, axes=None):
-        pass
+        home_insnx = geckoInstructions.HomeInsn(line=0,axis=0,chain=True)
+
+        #home_insny = geckoInstructions.HomeInsn(line=0,axis=1,chain=False)
+
+        binary_x = home_insnx.get_binary()
+    
+        high_first_pair = (binary_x >> 24) & 0xFF
+        high_last_pair = (binary_x >> 16) & 0xFF
+        low_first_pair = (binary_x >> 8) & 0xFF
+        low_last_pair = binary_x & 0xFF
         
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+        self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+        # binary_y = home_insny.get_binary()
+
+        # high_first_pair = (binary_y >> 24) & 0xFF
+        # high_last_pair = (binary_y >> 16) & 0xFF
+        # low_first_pair = (binary_y >> 8) & 0xFF
+        # low_last_pair = binary_y & 0xFF
+        
+        # self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
+
     def get_current_positions(self):
       
         query_long_command = bytes([0x08, 0x00])
@@ -348,7 +368,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         else:
             is_moving_y = True
         
-        movement = [is_moving_x,is_moving_y]
+        movement = [is_moving_x,is_moving_y,False]
         return movement
         
          
