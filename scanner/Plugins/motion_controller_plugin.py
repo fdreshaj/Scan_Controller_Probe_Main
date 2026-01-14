@@ -17,6 +17,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         super().__init__()
         
+        self.scanner_type = PluginSettingString(
+            "Scanner Type",
+            "Big Scanner",
+            select_options=["Big Scanner", "Small Scanner"],
+            restrict_selections=True
+        )
+        self.add_setting_pre_connect(self.scanner_type)
+        
         ports = [port.device for port in list_ports.comports()]
         
         
@@ -32,6 +40,8 @@ class motion_controller_plugin(MotionControllerPlugin):
             select_options=ports,
             restrict_selections=True
         )
+        
+        
         
         self.axis_settings = PluginSettingString("Choose Axis","X",select_options=["X","Y","Z","W"],restrict_selections=True)
         
@@ -85,12 +95,16 @@ class motion_controller_plugin(MotionControllerPlugin):
             stopbits=serial.STOPBITS_ONE,
             timeout=1 #seconds
         )
-        self.x_min = 0.0
-        self.x_max = 600.0
-        self.y_min = 0.0
-        self.y_max = 600.0
-        self.z_min = 0.0
-        self.z_max = 0.0 
+        scanner_type_str = self.scanner_type.value
+        if scanner_type_str == "Big Scanner":
+            self.x_min, self.x_max = 0.0, 500.0
+            self.y_min, self.y_max = 0.0, 500.0
+            self.z_min, self.z_max = 0.0, 0.0
+        else:
+            self.x_min, self.x_max = 0.0, 300.0
+            self.y_min, self.y_max = 0.0, 300.0
+            self.z_min, self.z_max = 0.0, 300.0
+     
         amp_val = PluginSettingFloat.get_value_as_string(self.amps)
         amp_float = float(amp_val)
         idle_percent = PluginSettingFloat.get_value_as_string(self.idle_Percent)
@@ -256,6 +270,7 @@ class motion_controller_plugin(MotionControllerPlugin):
        
        
        
+       
         pos_mult = float(PluginSettingFloat.get_value_as_string(self.position_multiplier))
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
@@ -266,7 +281,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         if not isinstance(move_pos, dict) or not move_pos:
             print("Error: Input must be a non-empty dictionary.")
-            
+    
         
         for key, val in move_pos.items():
             raw_value = val
@@ -289,10 +304,25 @@ class motion_controller_plugin(MotionControllerPlugin):
         else:
             is_negative = 1
             raw_value = int(abs(raw_value))
-        
-        
-        
+            
         raw_value = int(raw_value*pos_mult*micro_mult)
+        
+        for axis_idx, delta in move_pos.items():
+            new_potential_pos = self.current_position[axis_idx] + delta
+            
+            if axis_idx == 0:  # X axis
+                if new_potential_pos < self.x_min or new_potential_pos > self.x_max:
+                    raise ValueError(f"LIMIT VIOLATION: X move of {delta} would reach {new_potential_pos}, exceeding [{self.x_min}, {self.x_max}]")
+            elif axis_idx == 1:  # Y axis
+                if new_potential_pos < self.y_min or new_potential_pos > self.y_max:
+                    raise ValueError(f"LIMIT VIOLATION: Y move of {delta} would reach {new_potential_pos}, exceeding [{self.y_min}, {self.y_max}]")
+            elif axis_idx == 2:  # Z axis
+                if new_potential_pos < self.z_min or new_potential_pos > self.z_max:
+                    raise ValueError(f"LIMIT VIOLATION: Z move of {delta} would reach {new_potential_pos}, exceeding [{self.z_min}, {self.z_max}]")
+        
+
+        
+        
         
         motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_value,chain=False)
         binary_x = motion_insn.get_binary()
@@ -304,6 +334,11 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         self.serial_port.write(bytes([0x04, 0x00, high_last_pair, high_first_pair, low_last_pair, low_first_pair]))
         
+        busy_bit = self.is_moving()
+        while busy_bit[0] and busy_bit[1] == True:
+            busy_bit = self.is_moving()
+        
+        self.current_position[axis_idx] += delta
         
         
     def home(self, axes=None):
@@ -355,6 +390,9 @@ class motion_controller_plugin(MotionControllerPlugin):
             
         self.set_velocity()
 
+        self.current_position = [0.0, 0.0, 0.0] 
+        
+        
     def get_current_positions(self):
       
         query_long_command = bytes([0x08, 0x00])
