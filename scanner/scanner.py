@@ -16,8 +16,6 @@ import tkinter as tk
 from tkinter import ttk
 from alive_progress import alive_bar
 
-#### Issue that the 0 1 coord is not being written to the file, need to fix this later, 
- 
 
 
 class Scanner():
@@ -106,7 +104,7 @@ class Scanner():
         self.matrix_copy = matrix
         negative_thresh = -0.01
         positive_thresh = 0.01
-        step_size = step_size ## For the gecko motion plugins:For some reason the step size to mm ratio is double so just divide by two step size and negative step size if needed, will fix later FIXME:
+        step_size = step_size 
         negative_step_size = negative_step_size
         self._open_output_file()
         self.frequencies = self._probe_controller.get_xaxis_coords()
@@ -175,6 +173,72 @@ class Scanner():
         with alive_bar(len(matrix[0])) as bar:
             for i in range(len(matrix[0])):
                 start = time.time()
+
+                # Move to position FIRST (except for point 0 where we're already there)
+                if i > 0:
+                    diff_Var = matrix[:, i] - matrix[:, i-1]
+
+                    try:
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_active("Motor")
+
+                        if diff_Var[0] > positive_thresh:
+                            self._motion_controller.move_absolute({0: step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[0] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[0] < negative_thresh:
+                            self._motion_controller.move_absolute({0: negative_step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[0] == True:
+                                busy_bit = self._motion_controller.is_moving()
+
+                        if diff_Var[1] > positive_thresh:
+                            self._motion_controller.move_absolute({1: step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[1] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[1] < negative_thresh:
+                            self._motion_controller.move_absolute({1: negative_step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[1] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        if diff_Var[2] > positive_thresh:
+                            self._motion_controller.move_absolute({2: step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[2] == True:
+                                busy_bit = self._motion_controller.is_moving()
+                        elif diff_Var[2] < negative_thresh:
+                            self._motion_controller.move_absolute({2: negative_step_size})
+                            busy_bit = self._motion_controller.is_moving()
+                            while busy_bit[2] == True:
+                                busy_bit = self._motion_controller.is_moving()
+
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_idle("Motor")
+                    except Exception as e:
+                        if self.signal_scope:
+                            self.signal_scope.set_lane_idle("Motor")
+
+                        is_endstop = "ENDSTOP VIOLATION" in str(e)
+                        error_category = "Endstop Violation" if is_endstop else "Motor Failure"
+                        error_msg = f"{error_category}: {str(e)}"
+                        
+                        print(error_msg)
+
+                        if self.signal_scope:
+                            self.signal_scope.freeze_on_error(
+                                error_msg,
+                                "Motor",
+                                {
+                                    "point_index": i,
+                                    "current_position": matrix[:, i-1].tolist(),
+                                    "target_position": matrix[:, i].tolist(),
+                                    "exception_type": type(e).__name__,
+                                    "is_boundary_violation": is_endstop
+                                }
+                            )
+                        break
 
                 # VNA measurement with error handling and retry logic
                 all_s_params_data = None
@@ -260,73 +324,6 @@ class Scanner():
                         scan_point_callback(i, all_s_params_data)
                     except Exception as e:
                         print(f"Warning: Scan point callback failed: {e}")
-
-                # Motor movement with error handling
-                if i < len(matrix[0]) - 1:
-                    diff_Var = matrix[:, i+1] - matrix[:, i]
-
-                    try:
-                        if self.signal_scope:
-                            self.signal_scope.set_lane_active("Motor")
-
-                        if diff_Var[0] > positive_thresh:
-                            self._motion_controller.move_absolute({0: step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[0] == True:
-                                busy_bit = self._motion_controller.is_moving()
-                        elif diff_Var[0] < negative_thresh:
-                            self._motion_controller.move_absolute({0: negative_step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[0] == True:
-                                busy_bit = self._motion_controller.is_moving()
-
-                        if diff_Var[1] > positive_thresh:
-                            self._motion_controller.move_absolute({1: step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[1] == True:
-                                busy_bit = self._motion_controller.is_moving()
-                        elif diff_Var[1] < negative_thresh:
-                            self._motion_controller.move_absolute({1: negative_step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[1] == True:
-                                busy_bit = self._motion_controller.is_moving()
-                        if diff_Var[2] > positive_thresh:
-                            self._motion_controller.move_absolute({2: step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[2] == True:
-                                busy_bit = self._motion_controller.is_moving()
-                        elif diff_Var[2] < negative_thresh:
-                            self._motion_controller.move_absolute({2: negative_step_size})
-                            busy_bit = self._motion_controller.is_moving()
-                            while busy_bit[2] == True:
-                                busy_bit = self._motion_controller.is_moving()
-
-                        if self.signal_scope:
-                            self.signal_scope.set_lane_idle("Motor")
-                    except Exception as e:
-                        if self.signal_scope:
-                            self.signal_scope.set_lane_idle("Motor")
-
-                        # Check if this is specifically a boundary/endstop violation
-                        is_endstop = "ENDSTOP VIOLATION" in str(e)
-                        error_category = "Endstop Violation" if is_endstop else "Motor Failure"
-                        error_msg = f"{error_category}: {str(e)}"
-                        
-                        print(error_msg)
-
-                        if self.signal_scope:
-                            self.signal_scope.freeze_on_error(
-                                error_msg,
-                                "Motor",
-                                {
-                                    "point_index": i,
-                                    "current_position": matrix[:, i].tolist(),
-                                    "target_position": matrix[:, i+1].tolist(),
-                                    "exception_type": type(e).__name__,
-                                    "is_boundary_violation": is_endstop # Added specific flag for scope
-                                }
-                            )
-                        break
 
                 end = time.time()
                 bar()
