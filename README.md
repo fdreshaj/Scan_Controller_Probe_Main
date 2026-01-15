@@ -25,4 +25,4 @@ serial             0.0.97
 zmq                0.0.0
 
 
-wanted to see claude code capabilities
+

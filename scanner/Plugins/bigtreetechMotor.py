@@ -178,7 +178,11 @@ class motion_controller_plugin(MotionControllerPlugin):
                 #move_command = f"G0 {axis_map[axis_idx]}{delta}" # Modified command in your move loop
                 move_command = f"G0 {axis_map[axis_idx]}{delta} F2000" # f2000 = 2000 mm/min
                 self.send_gcode_command(move_command)
-                
+                movement = self.is_moving()
+                print(movement)
+                while movement[0] == True:
+                    movement= self.is_moving()
+                    print(movement)
                 # 3. UPDATE TRACKING: Increment the current position by the distance moved
                 self.current_position[axis_idx] += delta
 
