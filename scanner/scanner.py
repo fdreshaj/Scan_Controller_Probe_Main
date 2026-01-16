@@ -26,13 +26,12 @@ class Scanner():
 
 
     def __init__(self, motion_controller: MotionController | None = None, probe_controller: ProbeController | None = None, signal_scope=None) -> None:
-       # self.plotter = plotter_system()
+       
         self.output_filepath = "vna_data5.bin"
         self.time_linearity_test = []
         self.signal_scope = signal_scope
 
-        # Settings cache for preserving plugin settings across re-instantiations
-        # Dictionary keyed by plugin class name
+       
         self._plugin_settings_cache = {}
         
         if PluginSwitcher.plugin_name == "":
@@ -117,13 +116,13 @@ class Scanner():
         for i in range(0, len(meta_data)):
             self.HDF5FILE.attrs[f'{meta_data_labels[i]}'] = f'{meta_data[i]}'
         self.HDF5FILE.attrs['Units'] = 'Hz'
-        self.HDF5FILE.attrs['wasUniform'] = 1  # Store as integer (HDF5 doesn't have native bool)
-        self.HDF5FILE.attrs['isComplex'] = 1  # Set based on your scan type
+        self.HDF5FILE.attrs['wasUniform'] = 1  
+        self.HDF5FILE.attrs['isComplex'] = 1  
         self.HDF5FILE.attrs['isComplex'] = True
         self.HDF5FILE.attrs['numPoints'] = len(matrix[0])
         self.HDF5FILE.attrs['numFrequencies'] = len(self.frequencies)
 
-        # Save scan settings to HDF5
+        
         if scan_settings:
             self.HDF5FILE.create_group("/ScanSettings")
             for key, value in scan_settings.items():

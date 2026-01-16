@@ -171,19 +171,16 @@ class motion_controller_plugin(MotionControllerPlugin):
         for axis_idx, delta in move_dist.items():
             axis_map = {0: 'X', 1: 'Y', 2: 'Z'}
             if axis_idx in axis_map:
-                # Ensure the controller is in relative mode (G91)
-                self.send_gcode_command("G91")
                 
-                # Send the distance as the coordinate in GCODE
-                #move_command = f"G0 {axis_map[axis_idx]}{delta}" # Modified command in your move loop
-                move_command = f"G0 {axis_map[axis_idx]}{delta} F2000" # f2000 = 2000 mm/min
+                
+                move_command = f"G0 {axis_map[axis_idx]}{delta} " 
                 self.send_gcode_command(move_command)
                 movement = self.is_moving()
                 print(movement)
                 while movement[0] == True:
                     movement= self.is_moving()
                     print(movement)
-                # 3. UPDATE TRACKING: Increment the current position by the distance moved
+               
                 self.current_position[axis_idx] += delta
 
         print(f"Position updated (Relative): X={self.current_position[0]:.2f}, Y={self.current_position[1]:.2f}, Z={self.current_position[2]:.2f}")
