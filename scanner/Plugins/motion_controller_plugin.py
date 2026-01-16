@@ -27,7 +27,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         ports = [port.device for port in list_ports.comports()]
         
-        
+        self.current_position = [0.0, 0.0, 0.0]
         
         for port in list_ports.comports():
             print(f"Found: {port.device}")
@@ -358,12 +358,19 @@ class motion_controller_plugin(MotionControllerPlugin):
         busy_bit = self.is_moving()
         while busy_bit[0] == True:
             busy_bit = self.is_moving()
+            
+        self.current_position = [0.0, 0.0, 0.0]
 
         self.move_absolute({0:2})
         self.move_absolute({1:2})
+
         self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00]))
+
+        
+
         self.move_absolute({0:2})
         self.move_absolute({1:2})
+    
 
         
         
@@ -376,7 +383,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         PluginSettingFloat.set_value_from_string(self.travel_velocity, f"{temp_vel}")
             
         self.set_velocity()
-        self.current_position = [0.0, 0.0, 0.0]
+        
 
         
         

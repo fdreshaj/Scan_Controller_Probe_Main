@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-01-16T14:08:19.896864",
+  "scope_time": 53.81901869998546,
+  "lane": "Motor",
+  "message": "Motor Failure: Motion driver must be connected to use this functionality.",
+  "error_type": "MOTOR_ERROR",
+  "additional_info": {
+    "point_index": 46,
+    "current_position": [
+      0.0,
+      45.0,
+      0.0
+    ],
+    "target_position": [
+      0.0,
+      46.0,
+      0.0
+    ],
+    "exception_type": "ConnectionError",
+    "is_boundary_violation": false
+  }
+}
