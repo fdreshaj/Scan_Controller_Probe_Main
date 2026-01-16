@@ -35,6 +35,7 @@ import time
 from PySide6.QtWidgets import QToolButton, QDialog, QVBoxLayout, QLabel
 from scanner.Signal_Scope import SignalScope 
 from scanner.S_param_visualizer import VisualizerWindow
+from scanner.step_file_importer import ndwindow
 import shutil
 #endregion
 
@@ -410,7 +411,7 @@ class MainWindow(QMainWindow):
             self.ui.config_layout.addRow(planar_slope_button)
 
             # STEP File Importer button
-            step_importer_button = QPushButton("STEP File Importer")
+            step_importer_button = QPushButton("STEP/STL File Importer")
             step_importer_button.clicked.connect(self.open_step_importer)
             self.ui.config_layout.addRow(step_importer_button)
 
@@ -521,6 +522,8 @@ class MainWindow(QMainWindow):
         Returns:
             tuple: (required_bytes, available_bytes, is_sufficient)
         """
+        pass
+
         try:
             # Calculate scan parameters from pattern settings (before matrix is generated)
             # Get x_length, y_length, and step_size from scan pattern settings
@@ -627,6 +630,7 @@ class MainWindow(QMainWindow):
         Returns:
             bool: True if sufficient space, False otherwise
         """
+        
         required, available, is_sufficient = self.calculate_scan_memory_requirements()
 
         if required is None:
@@ -820,57 +824,11 @@ class MainWindow(QMainWindow):
             self.scan_controller.matrix = new_matrix
 
     def open_step_importer(self):
-        """Open STEP file importer and project raster pattern onto curved surface."""
-        try:
-            from scanner.step_file_importer import load_and_project_step_file
-
-            # Get current raster pattern from scan controller
-            current_matrix = self.scan_controller.matrix
-
-            # Convert to expected format (X, Y, Z)
-            if current_matrix.shape[0] == 3:  # (3, N) -> (N, 3)
-                raster_matrix = current_matrix.T
-            else:
-                raster_matrix = current_matrix
-
-            # Ensure Z column exists (set to 0 if not)
-            if raster_matrix.shape[1] == 2:
-                raster_matrix = np.column_stack([raster_matrix, np.zeros(len(raster_matrix))])
-
-            print(f"Loading STEP file with current raster pattern ({len(raster_matrix)} points)")
-
-            # Set standoff distance (you can make this configurable)
-            standoff_distance = 5.0  # mm
-
-            # Load STEP file and project pattern
-            projected_matrix = load_and_project_step_file(raster_matrix, standoff_distance)
-
-            if projected_matrix is not None:
-                # Update scan controller matrix with projected pattern
-                # Convert back to (4, N) format if needed
-                if self.scan_controller.matrix.shape[0] < self.scan_controller.matrix.shape[1]:
-                    # Original was (3, N), make new one (4, N)
-                    self.scan_controller.matrix = projected_matrix.T
-                else:
-                    # Original was (N, 3), make new one (N, 4)
-                    self.scan_controller.matrix = projected_matrix
-
-                print("✓ STEP file projection applied to scan pattern")
-                print(f"  New matrix shape: {self.scan_controller.matrix.shape}")
-                messagebox.showinfo(
-                    "STEP File Imported",
-                    f"Successfully projected {len(projected_matrix)} scan points onto curved surface.\n\n"
-                    f"Z range: [{np.min(projected_matrix[:, 2]):.2f}, {np.max(projected_matrix[:, 2]):.2f}] mm\n"
-                    f"Rotation range: [{np.min(projected_matrix[:, 3]):.2f}, {np.max(projected_matrix[:, 3]):.2f}]°"
-                )
-            else:
-                messagebox.showerror("STEP Import Failed", "Failed to load or project STEP file.")
-
-        except Exception as e:
-            print(f"Error in STEP file importer: {e}")
-            import traceback
-            traceback.print_exc()
-            messagebox.showerror("STEP Import Error", f"Error: {str(e)}")
+        if not hasattr(self, "ndWindow"):
+            self.ndWindow = ndwindow()
+        self.ndWindow.show()
+        self.ndWindow.raise_()
+        self.ndWindow.activateWindow()
 
     def change_probe_plugin(self):
         """Allow user to select a different probe plugin."""
