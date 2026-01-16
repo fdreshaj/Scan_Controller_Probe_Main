@@ -342,26 +342,10 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def home(self, axes=None):
-        busy_bit = self.is_moving()
-        while busy_bit[0] and busy_bit[1] == True:
-            busy_bit = self.is_moving()
+        query_long_command = bytes([0x08, 0x00])
+        self.current_position = [10.0, 10.0, 0.0] 
         
 
-        # root = tk.Tk()
-        # root.withdraw() # Keeps the main blank window from appearing
-        
-        # # 2. Trigger the Native OS Message Box
-        # # This will pause the script until the user clicks 'OK'
-        # messagebox.showwarning(
-        #     "Manual Home Requirement", 
-        #     "The motor must be PHYSICALLY CENTERED on X and Y before proceeding."
-        # )
-        
-        # # Destroy the hidden root after use
-        # root.destroy()
-        
-        # position_x = 300
-        # position_y = 300 
         temp_vel = PluginSettingInteger.get_value_as_string(self.travel_velocity)
 
         PluginSettingFloat.set_value_from_string(self.travel_velocity, "10")
@@ -375,8 +359,11 @@ class motion_controller_plugin(MotionControllerPlugin):
         while busy_bit[0] == True:
             busy_bit = self.is_moving()
 
+        self.move_absolute({0:2})
+        self.move_absolute({1:2})
         self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00]))
-        self.move_absolute({0:-2})
+        self.move_absolute({0:2})
+        self.move_absolute({1:2})
 
         
         
@@ -389,8 +376,9 @@ class motion_controller_plugin(MotionControllerPlugin):
         PluginSettingFloat.set_value_from_string(self.travel_velocity, f"{temp_vel}")
             
         self.set_velocity()
+        self.current_position = [0.0, 0.0, 0.0]
 
-        self.current_position = [0.0, 0.0, 0.0] 
+        
         
         
     def get_current_positions(self):
