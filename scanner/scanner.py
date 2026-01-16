@@ -203,6 +203,7 @@ class Scanner():
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[1] == True:
                                 busy_bit = self._motion_controller.is_moving()
+                            time.sleep(0.1)
                         if diff_Var[2] > positive_thresh:
                             self._motion_controller.move_absolute({2: step_size})
                             busy_bit = self._motion_controller.is_moving()
@@ -315,7 +316,7 @@ class Scanner():
                             }
                         )
                     break
-
+                
                 self.data_inc += 1
 
                 # Call callback for real-time plotting updates
