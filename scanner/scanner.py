@@ -214,8 +214,8 @@ class Scanner():
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
 
-                        if self.signal_scope:
-                            self.signal_scope.set_lane_idle("Motor")
+                        
+                        self.signal_scope.set_lane_idle("Motor")
                     except Exception as e:
                         if self.signal_scope:
                             self.signal_scope.set_lane_idle("Motor")
@@ -292,9 +292,15 @@ class Scanner():
                     if self.signal_scope:
                         self.signal_scope.set_lane_active("File I/O")
 
-                    self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                    self.vna_thread.start()
-                    self.vna_thread.join()
+                    # self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                    # self.vna_thread.start()
+                    # self.vna_thread.join()
+                    for s_param_name, s_param_values in all_s_params_data.items():
+                        # Write to bulk arrays (much faster than creating individual groups)
+                        self.HDF5FILE[f"/Data/{s_param_name}_real"][self.data_inc, :] = np.real(s_param_values)
+                        self.HDF5FILE[f"/Data/{s_param_name}_imag"][self.data_inc, :] = np.imag(s_param_values)
+                        print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}")
+        
 
                     if self.signal_scope:
                         self.signal_scope.set_lane_idle("File I/O")
@@ -372,7 +378,7 @@ class Scanner():
     
     def vna_write_data_bulk(self, all_s_params_data):
         
-        start_data = time.time()
+        
         
         for s_param_name, s_param_values in all_s_params_data.items():
             # Write to bulk arrays (much faster than creating individual groups)
@@ -380,11 +386,7 @@ class Scanner():
             self.HDF5FILE[f"/Data/{s_param_name}_imag"][self.data_inc, :] = np.imag(s_param_values)
             print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}")
         
-        end = time.time()
-        
-        self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:, self.data_inc],))
-        self.motion_tracker_thread.start()
-        self.time_linearity_test.append(end - start_data)
+    
     
     
     def motion_tracker(self,vector):   
