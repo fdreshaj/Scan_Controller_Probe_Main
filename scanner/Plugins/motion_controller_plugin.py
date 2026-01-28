@@ -343,46 +343,59 @@ class motion_controller_plugin(MotionControllerPlugin):
         
     def home(self, axes=None):
         query_long_command = bytes([0x08, 0x00])
-        self.current_position = [10.0, 10.0, 0.0] 
+        # Prompt user to manually home and place scanner in middle X/Y
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showinfo(
+                "Manual Homing Required",
+                "Please complete manual homing first.\nSet the scanner position to the middle of the X and Y axes, then continue."
+            )
+            root.destroy()
+        except Exception as e:
+            print(f"Could not show homing messagebox: {e}")
+
+        self.current_position = [300, 300, 0.0]
+        # Make sure it is in the middle position for manual homing
         
 
-        temp_vel = PluginSettingInteger.get_value_as_string(self.travel_velocity)
+        # temp_vel = PluginSettingInteger.get_value_as_string(self.travel_velocity)
 
-        PluginSettingFloat.set_value_from_string(self.travel_velocity, "10")
+        # PluginSettingFloat.set_value_from_string(self.travel_velocity, "10")
         
 
-        self.set_velocity()
+        # self.set_velocity()
 
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x02, 0x00, 0x00]))
+        # self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x02, 0x00, 0x00]))
 
-        busy_bit = self.is_moving()
-        while busy_bit[0] == True:
-            busy_bit = self.is_moving()
+        # busy_bit = self.is_moving()
+        # while busy_bit[0] == True:
+        #     busy_bit = self.is_moving()
             
-        self.current_position = [0.0, 0.0, 0.0]
+        # self.current_position = [0.0, 0.0, 0.0]
 
-        self.move_absolute({0:2})
-        self.move_absolute({1:2})
+        # self.move_absolute({0:2})
+        # self.move_absolute({1:2})
 
-        self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00]))
+        # self.serial_port.write(bytes([0x04, 0x00, 0x00, 0x62, 0x00, 0x00]))
 
         
 
-        self.move_absolute({0:2})
-        self.move_absolute({1:2})
+        # self.move_absolute({0:2})
+        # self.move_absolute({1:2})
     
 
         
         
-        busy_bit = self.is_moving()
-        while busy_bit[1] == True:
-            busy_bit = self.is_moving()
+        # busy_bit = self.is_moving()
+        # while busy_bit[1] == True:
+        #     busy_bit = self.is_moving()
 
 
 
-        PluginSettingFloat.set_value_from_string(self.travel_velocity, f"{temp_vel}")
+        # PluginSettingFloat.set_value_from_string(self.travel_velocity, f"{temp_vel}")
             
-        self.set_velocity()
+        # self.set_velocity()
         
 
         

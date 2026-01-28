@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-01-27T09:49:32.717693",
+  "scope_time": 69758.90106429998,
+  "lane": "VNA",
+  "message": "VNA measurement failed twice consecutively: timed out",
+  "error_type": "TIMEOUT",
+  "additional_info": {
+    "point_index": 12386,
+    "position": [
+      98.0,
+      38.0,
+      0.0
+    ],
+    "exception_type": "TimeoutError",
+    "consecutive_failures": 2
+  }
+}

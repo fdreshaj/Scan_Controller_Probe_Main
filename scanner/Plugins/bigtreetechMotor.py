@@ -36,7 +36,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         self.rm = None
         self.driver = None
         self.resource_name = None
-        self.timeout = 10000
+        self.timeout = 5000
         self.rm = pyvisa.ResourceManager()
         print("PyVISA ResourceManager initialized.")
         self.devices = self.rm.list_resources()
@@ -173,7 +173,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             if axis_idx in axis_map:
                 
                 
-                move_command = f"G0 {axis_map[axis_idx]}{delta} " 
+                move_command = f"G0 {axis_map[axis_idx]}{delta} F1000" 
                 self.send_gcode_command(move_command)
                 movement = self.is_moving()
                 print(movement)
@@ -276,7 +276,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         return tuple(self.current_position)
  
     def is_moving(self,axis=None) -> bool:
-
+        
         movement=[True,True,True]
         res = self.send_gcode_command("M400") 
         print("/////")

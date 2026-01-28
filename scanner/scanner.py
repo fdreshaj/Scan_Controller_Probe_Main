@@ -166,6 +166,29 @@ class Scanner():
             self.HDF5FILE.create_dataset(f"/Data/{s_param_name}_imag", (num_points, num_freqs), dtype='float64')
             print(f"Created datasets for {s_param_name}")
 
+        # Determine scan pattern style (e.g., 'YX' or 'XY') from provided settings or metadata
+        pattern_style = None
+        if scan_settings:
+            try:
+                for k, v in scan_settings.items():
+                    if 'pattern' in str(k).lower():
+                        pattern_style = str(v).upper()
+                        break
+            except Exception:
+                pass
+
+        if not pattern_style and meta_data_labels:
+            try:
+                for idx, label in enumerate(meta_data_labels):
+                    if 'pattern' in str(label).lower():
+                        pattern_style = str(meta_data[idx]).upper()
+                        break
+            except Exception:
+                pass
+
+        # store resolved pattern style for use in movement waits
+        self._scan_pattern_style = pattern_style
+
         # VNA error tracking - only trigger error if it fails twice in a row
         vna_consecutive_failures = 0
 
@@ -186,23 +209,35 @@ class Scanner():
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[0] == True:
                                 busy_bit = self._motion_controller.is_moving()
+                            # If pattern is YX, wait 1 second after X movement
+                            if self._scan_pattern_style == "YX":
+                                time.sleep(1)
                         elif diff_Var[0] < negative_thresh:
                             self._motion_controller.move_absolute({0: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[0] == True:
                                 busy_bit = self._motion_controller.is_moving()
+                            # If pattern is YX, wait 1 second after X movement
+                            if self._scan_pattern_style == "YX":
+                                time.sleep(1)
 
                         if diff_Var[1] > positive_thresh:
                             self._motion_controller.move_absolute({1: step_size})
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[1] == True:
                                 busy_bit = self._motion_controller.is_moving()
+                            # If pattern is XY, wait 1 second after Y movement
+                            if self._scan_pattern_style == "XY":
+                                time.sleep(1)
                         elif diff_Var[1] < negative_thresh:
                             self._motion_controller.move_absolute({1: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
                             while busy_bit[1] == True:
                                 busy_bit = self._motion_controller.is_moving()
-                            time.sleep(0.1)
+                            
+                            # If pattern is XY, wait 1 second after Y movement
+                            if self._scan_pattern_style == "XY":
+                                time.sleep(1)
                         if diff_Var[2] > positive_thresh:
                             self._motion_controller.move_absolute({2: step_size})
                             busy_bit = self._motion_controller.is_moving()
