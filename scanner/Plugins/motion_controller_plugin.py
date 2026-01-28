@@ -93,7 +93,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
-            timeout=1 #seconds
+            timeout=5 #seconds
         )
         scanner_type_str = self.scanner_type.value
         if scanner_type_str == "Big Scanner":
