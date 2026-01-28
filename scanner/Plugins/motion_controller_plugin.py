@@ -27,7 +27,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         ports = [port.device for port in list_ports.comports()]
         
-        self.current_position = [0.0, 0.0, 0.0]
+        self.current_position = [300, 300, 0.0]
         
         for port in list_ports.comports():
             print(f"Found: {port.device}")
@@ -306,21 +306,23 @@ class motion_controller_plugin(MotionControllerPlugin):
             raw_value = int(abs(raw_value))
             
         raw_value = int(raw_value*pos_mult*micro_mult)
-        
-        for axis_idx, delta in move_pos.items():
-            new_potential_pos = self.current_position[axis_idx] + delta
-            
-            if axis_idx == 0:  # X axis
-                if new_potential_pos < self.x_min or new_potential_pos > self.x_max:
-                    raise ValueError(f"LIMIT VIOLATION: X move of {delta} would reach {new_potential_pos}, exceeding [{self.x_min}, {self.x_max}]")
-            elif axis_idx == 1:  # Y axis
-                if new_potential_pos < self.y_min or new_potential_pos > self.y_max:
-                    raise ValueError(f"LIMIT VIOLATION: Y move of {delta} would reach {new_potential_pos}, exceeding [{self.y_min}, {self.y_max}]")
-            elif axis_idx == 2:  # Z axis
-                if new_potential_pos < self.z_min or new_potential_pos > self.z_max:
-                    raise ValueError(f"LIMIT VIOLATION: Z move of {delta} would reach {new_potential_pos}, exceeding [{self.z_min}, {self.z_max}]")
-        
+        if self.is_homed == True:
 
+            for axis_idx, delta in move_pos.items():
+                new_potential_pos = self.current_position[axis_idx] + delta
+                
+                if axis_idx == 0:  # X axis
+                    if new_potential_pos < self.x_min or new_potential_pos > self.x_max:
+                        raise ValueError(f"LIMIT VIOLATION: X move of {delta} would reach {new_potential_pos}, exceeding [{self.x_min}, {self.x_max}]")
+                elif axis_idx == 1:  # Y axis
+                    if new_potential_pos < self.y_min or new_potential_pos > self.y_max:
+                        raise ValueError(f"LIMIT VIOLATION: Y move of {delta} would reach {new_potential_pos}, exceeding [{self.y_min}, {self.y_max}]")
+                elif axis_idx == 2:  # Z axis
+                    if new_potential_pos < self.z_min or new_potential_pos > self.z_max:
+                        raise ValueError(f"LIMIT VIOLATION: Z move of {delta} would reach {new_potential_pos}, exceeding [{self.z_min}, {self.z_max}]")
+            
+        else:
+            pass  # If not homed, skip limit checks
         
         
         
@@ -354,7 +356,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             root.destroy()
         except Exception as e:
             print(f"Could not show homing messagebox: {e}")
-
+        self.is_homed = True
         self.current_position = [300, 300, 0.0]
         # Make sure it is in the middle position for manual homing
         
