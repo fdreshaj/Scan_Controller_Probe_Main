@@ -817,7 +817,7 @@ class MainWindow(QMainWindow):
     
     def run_slope_logic(self):
 
-        new_matrix = self.scan_controller.apply_planar_slope_ui(self.scan_controller.matrix)
+        new_matrix = self.scan_controller.apply_planar_slope_ui(self.scan_controller.matrix,self.step_size)
 
 
         if new_matrix is not None:

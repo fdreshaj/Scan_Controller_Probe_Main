@@ -158,7 +158,7 @@ class ScanPattern(ScanPatternControllerPlugin):
         return np.round(total_time,3)
     
     
-    def apply_planar_slope_ui(self, matrix_xy):
+    def apply_planar_slope_ui(self, matrix_xy, step_size, s_deg=45, s_dir=0.0, z_off=50.0):
         # Initialize hidden root for the popup
         root = tk.Tk()
         root.withdraw()
@@ -170,45 +170,49 @@ class ScanPattern(ScanPatternControllerPlugin):
         self._result_matrix = None
 
         def on_generate():
-            try:
-                # 1. Capture user inputs
-                s_size = float(entry_step.get())
-                s_deg = float(entry_slope.get())
-                s_dir = float(entry_dir.get())
-                z_off = float(entry_z0.get())
-                order = order_var.get()
+            
+            # # 1. Capture user inputs
+            # s_size = float(entry_step.get())
+            # s_deg = float(entry_slope.get())
+            # s_dir = float(entry_dir.get())
+            # z_off = float(entry_z0.get())
+            # print(f"Z Offset: {z_off}, Slope: {s_deg}, Slope Dir: {s_dir}, Step Size: {s_size}")
+            order = order_var.get()
 
-                # 2. Calculation
-                if order == "YX":
-                    y_idx, x_idx = matrix_xy
-                else:
-                    x_idx, y_idx = matrix_xy
+            if order == "YX":
+                y_idx, x_idx, z_old = matrix_xy
+            else:
+                x_idx, y_idx, z_old = matrix_xy
 
-                x = x_idx * s_size
-                y = y_idx * s_size
-                slope = np.tan(np.deg2rad(s_deg))
-                phi = np.deg2rad(s_dir)
-                
-                # Planar Equation: z = z0 + slope * (x*cos(phi) + y*sin(phi))
-                z = z_off + slope * (x * np.cos(phi) + y * np.sin(phi))
-                
-                self._result_matrix = np.vstack((x, y, z))
-                
-                # 3. Print the matrix to console (as requested)
-                print("\n--- Generated Scan Matrix (XYZ) ---")
-                print(self._result_matrix)
-                print(f"Shape: {self._result_matrix.shape}\n")
+            # Convert indices to physical units (mm)
+            x = x_idx * step_size
+            y = y_idx * step_size
 
-                # 4. Plot and Clean up
-                self.plot_scan_3d(self._result_matrix)
-                popup.destroy()
-                root.quit()
-                
-            except ValueError:
-                print("Error: Please enter numerical values in all fields.")
+            # Apply the planar slope formula
+            slope = np.tan(np.deg2rad(s_deg))
+            phi = np.deg2rad(s_dir)
 
+            # Planar Equation: z = z0 + slope * (x*cos(phi) + y*sin(phi))
+            z = z_off + slope * (x * np.cos(phi) + y * np.sin(phi))
+
+            # Overwrite the result matrix with the new calculated XYZ coordinates
+            self._result_matrix = np.vstack((x, y, z))
+            
+            
+            
+            # 3. Print the matrix to console (as requested)
+            print("\n--- Generated Scan Matrix (XYZ) ---")
+            print(self._result_matrix)
+            print(f"Shape: {self._result_matrix.shape}\n")
+
+            # 4. Plot and Clean up
+            self.plot_scan_3d(self._result_matrix)
+            popup.destroy()
+            root.quit()
+                
+            
         # --- UI Setup ---
-        fields = [("Step Size", "1.0"), ("Slope (deg)", "5.0"), 
+        fields = [("Step Size", str(step_size)), ("Slope (deg)", "5.0"), 
                   ("Slope Dir (deg)", "0"), ("Z Offset (z0)", "50.0")]
         
         entries = []
