@@ -66,12 +66,12 @@ class MainWindow(QMainWindow):
         self.scan_controller = ScanPattern()
         self.file_controller = ScanFile()
         self.motion_config_counter = 0
-        self.current_theme = "light"
+        self.current_theme = "dark"
         self.camera_app = None  # Will be set when camera is opened
         self.setup_theme_toggle()
         self.setup_settings_button()
         self.setup_top_controls()
-        app.setStyleSheet(qdarktheme.load_stylesheet("light"))
+        app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
         try:
             self.setup_plotting_canvas()
             self.setup_connections()
@@ -779,7 +779,7 @@ class MainWindow(QMainWindow):
         self.negative_step_size = np.negative(self.step_size)
         self.scan_thread = threading.Thread(
             target=self.scanner.scanner.run_scan,
-            args=(matrix, self.length, self.step_size, self.negative_step_size, self.metaData, self.metaData_labels),
+            args=(matrix, self.length, self.scan_controller.x_axis_len_int,self.scan_controller.y_axis_len_int, self.step_size, self.negative_step_size, self.metaData, self.metaData_labels),
             kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings, 'scan_point_callback': self.update_plot_during_scan}
         )
         self.scan_thread.start()

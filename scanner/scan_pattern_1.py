@@ -49,6 +49,9 @@ class ScanPattern(ScanPatternControllerPlugin):
         self.y_axis_len = float(self.y_axis_len)
         self.x_axis_len = float(self.x_axis_len)
         
+        self.y_axis_len_int = int(self.y_axis_len)
+        self.x_axis_len_int = int(self.x_axis_len)
+        
         # self.points = self.y_axis_len / self.float_step_size 
         self.x_points = self.x_axis_len / self.float_step_size +1  
         
@@ -104,7 +107,8 @@ class ScanPattern(ScanPatternControllerPlugin):
         return np.array([row1, row2])
     
     def create_pattern_matrix_generalized(self,rows, cols):
-    
+        
+
         x_coords = np.tile(np.arange(cols), rows)
 
         y_coords = []
@@ -158,8 +162,8 @@ class ScanPattern(ScanPatternControllerPlugin):
         return np.round(total_time,3)
     
     
-    def apply_planar_slope_ui(self, matrix_xy, step_size, s_deg=45, s_dir=0.0, z_off=50.0):
-        # Initialize hidden root for the popup
+    def apply_planar_slope_ui(self, matrix_xy, step_size, s_deg=20, s_dir=90.0, z_off=50.0):
+        
         root = tk.Tk()
         root.withdraw()
 
@@ -171,12 +175,7 @@ class ScanPattern(ScanPatternControllerPlugin):
 
         def on_generate():
             
-            # # 1. Capture user inputs
-            # s_size = float(entry_step.get())
-            # s_deg = float(entry_slope.get())
-            # s_dir = float(entry_dir.get())
-            # z_off = float(entry_z0.get())
-            # print(f"Z Offset: {z_off}, Slope: {s_deg}, Slope Dir: {s_dir}, Step Size: {s_size}")
+           
             order = order_var.get()
 
             if order == "YX":
@@ -184,23 +183,22 @@ class ScanPattern(ScanPatternControllerPlugin):
             else:
                 x_idx, y_idx, z_old = matrix_xy
 
-            # Convert indices to physical units (mm)
+            
             x = x_idx * step_size
             y = y_idx * step_size
 
-            # Apply the planar slope formula
+            
             slope = np.tan(np.deg2rad(s_deg))
             phi = np.deg2rad(s_dir)
 
-            # Planar Equation: z = z0 + slope * (x*cos(phi) + y*sin(phi))
+            
             z = z_off + slope * (x * np.cos(phi) + y * np.sin(phi))
 
-            # Overwrite the result matrix with the new calculated XYZ coordinates
             self._result_matrix = np.vstack((x, y, z))
             
             
             
-            # 3. Print the matrix to console (as requested)
+            
             print("\n--- Generated Scan Matrix (XYZ) ---")
             print(self._result_matrix)
             print(f"Shape: {self._result_matrix.shape}\n")

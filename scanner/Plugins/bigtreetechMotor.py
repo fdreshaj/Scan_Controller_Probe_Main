@@ -68,6 +68,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             self.z_max = 300.0
             print("Scanner boundaries set: N-d Scanner (300x300x300 mm cube)")
 
+        self.timeout = 1000
         # Auto-detect GCODE device by trying all VISA resources
         if not self.devices:
             raise ConnectionError("No VISA devices found on system")
@@ -122,7 +123,7 @@ class motion_controller_plugin(MotionControllerPlugin):
 
         print(f"\n✓ Successfully connected to GCODE device: {self.resource_name}")
         print(f"Communication timeout set to {self.timeout} ms.")
-
+        test_driver.timeout = 5000
         # Set to relative positioning mode
         response = self.send_gcode_command("G91")
         
@@ -372,5 +373,16 @@ class motion_controller_plugin(MotionControllerPlugin):
             print("Homing complete. Position initialized to (0, 0, 0) mm")
 
         self.is_homed = True
+
+        if scanner_type_str == "N-d Scanner":
+            
+            self.move_absolute({0:150,1:150})
+            
+        else:
+            # Big Scanner: All axes at 0
+            self.move_absolute({0:300,1:300})
+            
+
+
 
         return {axis: self.current_position[axis] for axis in axes}
