@@ -162,7 +162,7 @@ class ScanPattern(ScanPatternControllerPlugin):
         return np.round(total_time,3)
     
     
-    def apply_planar_slope_ui(self, matrix_xy, step_size, s_deg=20, s_dir=90.0, z_off=50.0):
+    def apply_planar_slope_ui(self, matrix_xy, step_size, s_deg=10, s_dir=90.0, z_off=50.0):
         
         root = tk.Tk()
         root.withdraw()
@@ -172,7 +172,7 @@ class ScanPattern(ScanPatternControllerPlugin):
         popup.attributes('-topmost', True)
         
         self._result_matrix = None
-
+        z_step_size = step_size * np.tan(np.deg2rad(s_deg))
         def on_generate():
             
            
@@ -237,7 +237,7 @@ class ScanPattern(ScanPatternControllerPlugin):
         try: root.destroy()
         except: pass
         
-        return self._result_matrix
+        return self._result_matrix, z_step_size
 
     def plot_scan_3d(self, xyz, stride=1):
         X, Y, Z = xyz[0, ::stride], xyz[1, ::stride], xyz[2, ::stride]

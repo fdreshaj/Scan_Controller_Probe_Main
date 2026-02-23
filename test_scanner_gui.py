@@ -1,6 +1,7 @@
 
 ## IMPORTS 
 #region Imports
+import os
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
@@ -11,7 +12,7 @@ from tkinter import filedialog as fd
 from tkinter import messagebox
 import threading
 from gui.scanner_qt import ScannerQt
-from gui.ui_scanner_plotter_version import Ui_MainWindow
+from gui.ui_scanner import Ui_MainWindow
 from gui.qt_util import QPluginSetting
 import gui.select_plot_style as select_plot_style
 import gui.select_plot_hide as select_plot_hide
@@ -37,6 +38,7 @@ from scanner.Signal_Scope import SignalScope
 from scanner.S_param_visualizer import VisualizerWindow
 from scanner.step_file_importer import ndwindow
 import shutil
+import webbrowser
 #endregion
 
 class MainWindow(QMainWindow):
@@ -327,14 +329,14 @@ class MainWindow(QMainWindow):
 
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
-        """Configure probe controller settings UI - SIMPLIFIED VERSION."""
+    
         # Clear the config layout
         for i in reversed(range(self.ui.config_layout.rowCount())):
             self.ui.config_layout.removeRow(i)
 
         if connected:
             # Probe controller is connected - show settings and controls
-            # Show pre-connect settings (disabled, just for display)
+            
             for setting in controller.settings_pre_connect:
                 plug = QPluginSetting(setting)
                 plug.setDisabled(True)
@@ -345,7 +347,7 @@ class MainWindow(QMainWindow):
             disconnect_button.clicked.connect(disconnect_function)
             self.ui.config_layout.addRow(disconnect_button)
 
-            # Post-connect settings (editable)
+            # Post-connect settings 
             for setting in controller.settings_post_connect:
                 self.ui.config_layout.addRow(setting.display_label, QPluginSetting(setting))
 
@@ -531,7 +533,7 @@ class MainWindow(QMainWindow):
             y_length = self.scan_controller.y_length.value
             step_size = self.scan_controller.step_size.value
 
-            # Calculate number of points (same formula as in scan_pattern_1.py connect())
+            # Calculate number of points, take a look at scan_pattern_1.py
             x_points = int(x_length / step_size + 1)
             y_points = int(y_length / step_size + 1)
             num_scan_points = x_points * y_points
@@ -777,9 +779,12 @@ class MainWindow(QMainWindow):
                 pass
 
         self.negative_step_size = np.negative(self.step_size)
+        if not hasattr(self, 'z_step_size'):
+            self.z_step_size = 1
+             
         self.scan_thread = threading.Thread(
             target=self.scanner.scanner.run_scan,
-            args=(matrix, self.length, self.scan_controller.x_axis_len_int,self.scan_controller.y_axis_len_int, self.step_size, self.negative_step_size, self.metaData, self.metaData_labels),
+            args=(matrix, self.length, self.scan_controller.x_axis_len_int,self.scan_controller.y_axis_len_int, self.step_size, self.negative_step_size,self.z_step_size,self.metaData, self.metaData_labels),
             kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings, 'scan_point_callback': self.update_plot_during_scan}
         )
         self.scan_thread.start()
@@ -817,11 +822,12 @@ class MainWindow(QMainWindow):
     
     def run_slope_logic(self):
 
-        new_matrix = self.scan_controller.apply_planar_slope_ui(self.scan_controller.matrix,self.step_size)
+        new_matrix, z_step_size = self.scan_controller.apply_planar_slope_ui(self.scan_controller.matrix,self.step_size)
 
 
         if new_matrix is not None:
             self.scan_controller.matrix = new_matrix
+            self.z_step_size = z_step_size
 
     def open_step_importer(self):
         if not hasattr(self, "ndWindow"):
@@ -952,17 +958,25 @@ class MainWindow(QMainWindow):
         dlg.setModal(True)
 
         layout = QVBoxLayout(dlg)
-        open_scope_btn = QPushButton("Open Signal Scope")
+        open_scope_btn = QPushButton("Signal Scope")
         open_scope_btn.clicked.connect(self.open_signal_scope)
         layout.addWidget(open_scope_btn)
         
-        open_visualizer_btn = QPushButton("Open Visualizer")
+        open_visualizer_btn = QPushButton("Visualizer")
         open_visualizer_btn.clicked.connect(self.open_visualizer)
         layout.addWidget(open_visualizer_btn)
 
+        user_manual_btn = QPushButton("User Manual")
+        user_manual_btn.clicked.connect(self.open_user_manual)
+        layout.addWidget(user_manual_btn)
+
         dlg.resize(300, 200)
         dlg.exec()
-    
+    def open_user_manual(self):
+        
+        manual_path = os.path.join(os.path.dirname(__file__), "User_Manual.pdf")
+
+        webbrowser.open_new(manual_path)
     
     def open_visualizer(self):
         if not hasattr(self, "VisualizerWindow"):
@@ -997,10 +1011,10 @@ class MainWindow(QMainWindow):
         self.top_controls.move(margin, margin)
 
     def setup_plotting_canvas(self) -> None:
-        main_layout = self.ui.main_layout 
+       # main_layout = self.ui.main_layout 
        
-        main_layout.addWidget(self.plotter, 1, 5)
-        
+        # main_layout.addWidget(self.plotter, 1, 5)
+        pass
     def closeEvent(self, event: QCloseEvent) -> None:
         self.scanner.close()
         return super().closeEvent(event)

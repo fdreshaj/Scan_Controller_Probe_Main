@@ -98,7 +98,7 @@ class Scanner():
     
     
     
-    def run_scan(self, matrix, length,lenx,leny, step_size, negative_step_size, meta_data, meta_data_labels, camera_app=None, scan_settings=None, scan_point_callback=None) -> None:
+    def run_scan(self, matrix, length,lenx,leny, step_size, negative_step_size,z_step_size, meta_data, meta_data_labels, camera_app=None, scan_settings=None, scan_point_callback=None) -> None:
         self.data_inc = 0
         self.matrix_copy = matrix
         negative_thresh = -0.01
@@ -106,6 +106,8 @@ class Scanner():
         step_size = step_size 
         negative_step_size = negative_step_size
         self._open_output_file()
+        self.z_step_size = z_step_size
+        self.z_step_size_negative = -z_step_size
         self.frequencies = self._probe_controller.get_xaxis_coords()
 
         self.start_data = time.time()
@@ -286,7 +288,12 @@ class Scanner():
                             # self.vna_write_data_bulk(all_s_params_data)
                             # self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
                             # self.vna_thread.start()
+                            if self.signal_scope:
+                                self.signal_scope.set_lane_active("File I/O")
+                            # self.vna_write_data_bulk(all_s_params_data)
 
+                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                            self.vna_thread.start()
                                 
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
@@ -296,13 +303,13 @@ class Scanner():
                             self._motion_controller.move_absolute({2: negative_step_size})
                             busy_bit = self._motion_controller.is_moving()
                             
+
                             if self.signal_scope:
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
-                            # self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            # self.vna_thread.start()
 
-
+                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                            self.vna_thread.start()
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
 
@@ -562,7 +569,13 @@ class Scanner():
             self.HDF5FILE[f"/Data/{s_param_name}_imag"][self.data_inc, :] = np.imag(s_param_values)
             print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}")
         
-    
+
+        self.HDF5FILE.flush()  
+
+        
+
+        file_descriptor = self.HDF5FILE.id.get_vfd_handle()
+        os.fsync(file_descriptor)
         self.data_inc += 1
 
         if self.signal_scope:
