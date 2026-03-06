@@ -30,7 +30,8 @@ class Scanner():
         self.output_filepath = "vna_data5.bin"
         self.time_linearity_test = []
         self.signal_scope = signal_scope
-
+        self._pause_event = threading.Event()
+        self._pause_event.set()
        
         self._plugin_settings_cache = {}
         
