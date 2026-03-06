@@ -458,6 +458,8 @@ class motion_controller_plugin(MotionControllerPlugin):
     def get_endstop_maximums(self):
         pass
     
-   
+    def emergency_stop(self):
+        ##TODO: 
+        pass
         
         

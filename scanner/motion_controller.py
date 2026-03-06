@@ -64,6 +64,9 @@ class MotionControllerPlugin(ABC):
     @abstractmethod 
     def set_config(self, amps,idle_p, idle_time):
         pass
+    @abstractmethod
+    def emergency_stop(self):
+        pass
 
 class MotionController:
     _axis_labels: tuple[str, ...]
@@ -171,4 +174,6 @@ class MotionController:
     def home(self) -> None:
         self.must_be_connected()
         return self._driver.home()
-    
+    def emergency_stop(self):
+        self.must_be_connected()
+        self._driver.emergency_stop()

@@ -334,6 +334,10 @@ class motion_controller_plugin(MotionControllerPlugin):
             print(f"An unexpected error occurred while sending command: {e}")
         return None
     
+    def emergency_stop(self):
+        print("EMERGENCY STOP ACTIVATED! Sending M112 to halt all motion immediately.")
+        self.send_gcode_command("M112")
+        print("All motion should now be stopped. Please check the device and reset if necessary.")
 
 
     def home(self, axes=None):

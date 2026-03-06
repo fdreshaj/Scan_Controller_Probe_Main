@@ -141,3 +141,5 @@ class PluginSwitcherMotion(MotionControllerPlugin):
     
     def get_endstop_maximums(self) -> tuple[float, ...]:
         pass
+    def emergency_stop(self):
+        pass

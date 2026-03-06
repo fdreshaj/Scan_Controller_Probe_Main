@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
 
         # Connect start scan button to run scan function
         self.ui.start_scan_button.clicked.connect(self.test_scan_bt)
+        
 
         self.scanner.current_position_x.connect(self.ui.x_axis_slider.setSliderPosition)
         self.scanner.current_position_y.connect(self.ui.y_axis_slider.setSliderPosition)
@@ -240,7 +241,11 @@ class MainWindow(QMainWindow):
                 
             go_back_file = QPushButton("Back")
             go_back_file.clicked.connect(self.go_back_file)
-            self.ui.config_layout.addRow(go_back_file)  
+            self.ui.config_layout.addRow(go_back_file)
+
+            pause_btn = QPushButton("Pause Scan")
+            pause_btn.clicked.connect(self.pause_scan)
+            self.ui.config_layout.addRow(pause_btn)  
         
         else:
             for i in reversed(range(self.ui.config_layout.rowCount())):
@@ -258,6 +263,8 @@ class MainWindow(QMainWindow):
             camera_pop_up = QPushButton("Camera Pop Up")
             camera_pop_up.clicked.connect(self.camera_pop_up)
             self.ui.config_layout.addRow(camera_pop_up)
+
+            
 
             
             
@@ -327,6 +334,9 @@ class MainWindow(QMainWindow):
                 change_plugin_btn.clicked.connect(self.change_motion_plugin)
                 self.ui.config_layout.addRow(change_plugin_btn)
 
+            estop_butt = QPushButton("E-Stop")
+            estop_butt.clicked.connect(self.estop_button)
+            self.ui.config_layout.addRow(estop_butt)
         
     def set_configuration_settings_probe(self, controller, connected, connect_function, disconnect_function):
     
@@ -393,7 +403,9 @@ class MainWindow(QMainWindow):
                 change_plugin_btn = QPushButton("Change Plugin")
                 change_plugin_btn.clicked.connect(self.change_probe_plugin)
                 self.ui.config_layout.addRow(change_plugin_btn)
-
+            estop_butt = QPushButton("E-Stop")
+            estop_butt.clicked.connect(self.estop_button)
+            self.ui.config_layout.addRow(estop_butt)
 
     def set_configuration_setting_pattern(self,connected) -> None:
         
@@ -421,6 +433,9 @@ class MainWindow(QMainWindow):
             disconnect_button.clicked.connect(self.disconnect_pat)
             self.ui.config_layout.addRow(disconnect_button)
             
+            estop_butt = QPushButton("E-Stop")
+            estop_butt.clicked.connect(self.estop_button)
+            self.ui.config_layout.addRow(estop_butt)
             ### TESTING
             self.step_size = self.scan_controller.float_step_size
             self.length = self.scan_controller.y_axis_len
@@ -726,6 +741,7 @@ class MainWindow(QMainWindow):
         
         
         
+        
     #region scan button func
     def update_plot_during_scan(self, point_index, s_params_data):
         """Callback function to update plotter in real-time during scan."""
@@ -739,6 +755,19 @@ class MainWindow(QMainWindow):
                 self.plotter.canvas.flush_events()
         except Exception as e:
             print(f"Error updating plot during scan: {e}")
+
+
+    def estop_button(self):
+        self.scanner.scanner._motion_controller.emergency_stop()
+        self.scanner.scanner.motion_controller.disconnect()
+        self.scanner.scanner.probe_controller.disconnect()
+
+    def pause_scan(self):
+        self.scanner.scanner.pause = True
+        self.scanner.scanner.handle_pause()
+
+
+
 
     def test_scan_bt(self):
         self.step_size = self.scan_controller.float_step_size
@@ -788,6 +817,10 @@ class MainWindow(QMainWindow):
             kwargs={'camera_app': self.camera_app, 'scan_settings': scan_settings, 'scan_point_callback': self.update_plot_during_scan}
         )
         self.scan_thread.start()
+
+        estop_butt = QPushButton("E-Stop")
+        estop_butt.clicked.connect(self.estop_button)
+        self.ui.config_layout.addRow(estop_butt)
         
             
     def display_Pop_up(self):

@@ -105,11 +105,13 @@ class Scanner():
         positive_thresh = 0.01
         step_size = step_size 
         negative_step_size = negative_step_size
+
+        self.pause = False
         self._open_output_file()
         self.z_step_size = z_step_size
         self.z_step_size_negative = -z_step_size
         self.frequencies = self._probe_controller.get_xaxis_coords()
-
+        
         self.start_data = time.time()
 
         self.HDF5FILE = h5py.File(f"{meta_data[1]}.hdf5", mode="a")  # meta 1 is filename
@@ -210,6 +212,12 @@ class Scanner():
             for i in range(len(matrix[0])):
                 start = time.time()
 
+                if self.pause:
+                    print("Scan paused. Waiting to resume...")
+                    self.handle_pause()
+
+                    
+                    
                 # Move to position FIRST (except for point 0 where we're already there)
                 if i > 0:
                     diff_Var = matrix[:, i] - matrix[:, i-1]
@@ -778,7 +786,41 @@ class Scanner():
 
 
 
-    
+    def handle_pause(self):
+        if self.pause:
+            print("Scan paused. Waiting for user input...")
+            
+            # Create a popup window
+            popup = tk.Toplevel(self.root) # Assumes 'self.root' is your main Tkinter window
+            popup.title("Scan Paused")
+            popup.geometry("300x150")
+            popup.attributes("-topmost", True)  # Keep it on top
+
+            label = tk.Label(popup, text="What would you like to do?", pady=10)
+            label.pack()
+
+            def on_reset():
+                print("Reset selected")
+                # self.reset_logic()
+                popup.destroy()
+
+            def on_rewind():
+                print("Rewind selected")
+                # self.rewind_logic()
+                popup.destroy()
+
+            def on_resume():
+                self.pause = False
+                popup.destroy()
+
+            # Button Layout
+            tk.Button(popup, text="Reset", width=10, command=on_reset).pack(pady=5)
+            tk.Button(popup, text="Rewind", width=10, command=on_rewind).pack(pady=5)
+            tk.Button(popup, text="Resume Scan", width=10, command=on_resume).pack(pady=5)
+
+            # This prevents the rest of your code from running until the popup is closed
+            popup.grab_set() 
+            self.root.wait_window(popup)
 
 
 
