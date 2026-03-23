@@ -200,13 +200,13 @@ class Scanner():
         ##Bounding box check before starting scan
         leny = float(leny)
         lenx = float(lenx)
-        self._motion_controller.move_absolute({1: leny})
-        self._motion_controller.move_absolute({0: lenx})
-        self._motion_controller.move_absolute({1: -leny})
-        self._motion_controller.move_absolute({0: -lenx})
-        busy_bit = self._motion_controller.is_moving()
-        while busy_bit[1] and busy_bit[0] == True:
-            busy_bit = self._motion_controller.is_moving()
+        # self._motion_controller.move_absolute({1: leny})
+        # self._motion_controller.move_absolute({0: lenx})
+        # self._motion_controller.move_absolute({1: -leny})
+        # self._motion_controller.move_absolute({0: -lenx})
+        # busy_bit = self._motion_controller.is_moving()
+        # while busy_bit[1] and busy_bit[0] == True:
+        #     busy_bit = self._motion_controller.is_moving()
         ##End bounding box check
 
         with alive_bar(len(matrix[0])) as bar:
