@@ -27,7 +27,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         ports = [port.device for port in list_ports.comports()]
         
-        self.current_position = [300, 300, 0.0]
+        self.current_position = [500, 500, 0.0]
         
         for port in list_ports.comports():
             print(f"Found: {port.device}")
@@ -45,19 +45,19 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         self.axis_settings = PluginSettingString("Choose Axis","X",select_options=["X","Y","Z","W"],restrict_selections=True)
         
-        self.position_multiplier = PluginSettingFloat("Position Multiplier",39.4)
+        self.position_multiplier = PluginSettingFloat("Position Multiplier",9.85)
         
         self.microstep_multiplier = PluginSettingFloat("Microstep Multiplier", 10)
         
         self.travel_velocity = PluginSettingInteger("Travel Velocity",50)
         
-        self.acceleration = PluginSettingFloat("Acceleration",100)
+        self.acceleration = PluginSettingFloat("Acceleration",50)
         
         self.idle_timeout = PluginSettingFloat("0-25.5s",2.5)
         
         self.idle_Percent = PluginSettingFloat("0-99",25)
         
-        self.amps = PluginSettingFloat("Amps 0-7",3)
+        self.amps = PluginSettingFloat("Amps 0-7",7)
         
         
         
@@ -96,9 +96,9 @@ class motion_controller_plugin(MotionControllerPlugin):
             timeout=5 #seconds
         )
         scanner_type_str = self.scanner_type.value
-        if scanner_type_str == "Big Scanner":
-            self.x_min, self.x_max = 0.0, 500.0
-            self.y_min, self.y_max = 0.0, 500.0
+        if scanner_type_str == "Huge Scanner":
+            self.x_min, self.x_max = 0.0, 1000.0 # adjusted for HUGE scanner
+            self.y_min, self.y_max = 0.0, 2000.0 # adjusted for HUGE scanner
             self.z_min, self.z_max = 0.0, 0.0
         else:
             self.x_min, self.x_max = 0.0, 300.0
@@ -190,13 +190,14 @@ class motion_controller_plugin(MotionControllerPlugin):
         micro_mult = float(PluginSettingFloat.get_value_as_string(self.microstep_multiplier))
         
         vel_final = pos_mult*micro_mult*0.261*vel
-        
+        vel_finalx = vel_final
+        vel_intx=int(vel_finalx)
         vel_int=int(vel_final)
         
         
-        velocity_command_x = geckoInstructions.VelocityInsn(line=0, axis=0, n=vel_int)
+        velocity_command_x = geckoInstructions.VelocityInsn(line=0, axis=0, n=vel_intx)
         
-        velocity_command_y = geckoInstructions.VelocityInsn(line=0, axis=1, n=vel_int)
+        velocity_command_y = geckoInstructions.VelocityInsn(line=0, axis=1, n=vel_int*2)
         
         binary_x = velocity_command_x.get_binary()
         binary_y = velocity_command_y.get_binary()
@@ -240,7 +241,7 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         acc_command_x = geckoInstructions.AccelerationInsn(line=0, axis=0, n=acc_int)
         
-        acc_command_y = geckoInstructions.AccelerationInsn(line=0, axis=1, n=acc_int)
+        acc_command_y = geckoInstructions.AccelerationInsn(line=0, axis=1, n=acc_int*2)
         
         binary_x = acc_command_x.get_binary()
         binary_y = acc_command_y.get_binary()
@@ -306,6 +307,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             raw_value = int(abs(raw_value))
             
         raw_value = int(raw_value*pos_mult*micro_mult)
+        raw_valuex = int(raw_value/5)
         if self.is_homed == True:
 
             for axis_idx, delta in move_pos.items():
@@ -325,8 +327,14 @@ class motion_controller_plugin(MotionControllerPlugin):
             pass  # If not homed, skip limit checks
         
         
+        if axis_num == 0:
         
-        motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_value,chain=False)
+            motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_valuex,chain=False)
+        elif axis_num == 1:
+            motion_insn = geckoInstructions.MoveInsn(line=0,axis=axis_num,relative=is_negative,n=raw_value,chain=False)
+        
+        
+        
         binary_x = motion_insn.get_binary()
     
         high_first_pair = (binary_x >> 24) & 0xFF

@@ -6,6 +6,8 @@ from datetime import datetime
 from scanner.probe_controller import ProbePlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger
 from scanner.motion_controller import MotionControllerPlugin
+import statistics   
+
 class cyBot_Plugin(ProbePlugin):
     def __init__(self):
         super().__init__()
@@ -211,7 +213,33 @@ class motion_controller_plugin(MotionControllerPlugin):
  
     def set_acceleration(self, accels: dict[int, float] = None) -> None:
         pass
-
+    
+    def apply_adc_averaging(fp, window_size=5):
+        raw_values = []
+        try:
+            with open(fp, 'r') as f:
+                for line in f:
+                    if "Data:" in line:
+                        parts = line.split("Data:")[1]
+                        if len(parts)>1:
+                            try:
+                                value = float(parts[1].strip().split()[0])
+                                raw_values.append(value)
+                            except Exception as e:
+                                print(f"Error occurred while reading file: {e}")
+            if len(raw_values) < window_size:
+                print("Not enough data points for averaging.")
+                return None
+            smoothed_data =[]
+            for i in range(len(raw_values)):
+                start_index = max(0, i - window_size + 1)
+                window = raw_values[start_index:i + 1]
+                average = sum(window) / len(window)
+                smoothed_data.append(round(average, 4))
+            return smoothed_data
+        except Exception as e:
+            print(f"Error occurred while reading file: {e}")
+            return None
 
     def move_absolute(self, move_dist: dict[int, float]) -> dict[int, float] | None:
         for key, val in move_dist.items():
@@ -276,4 +304,9 @@ class motion_controller_plugin(MotionControllerPlugin):
         pass
 
     def home(self, axes=None):
-        pass
+        ## Currently being used as a scan button.
+        
+        prefix = "h"
+        
+        self.send_gcode_command(prefix)
+        

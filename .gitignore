@@ -220,3 +220,11 @@ test_9.hdf5
 *.scan
 scanner/progressBar.py
 scanner/h5py_test_test.py
+scanner/Plugins/motion_controller_plugin.py
+quiz_test.exe
+quiz_test.c
+cybot_data_log.txt
+scanner/scanner.py
+scanner/Plugins/motion_controller_plugin.py
+scanner/Plugins/Simplified_VNA_Plugin.py
+scanner/Plugins/motion_controller_plugin.py
