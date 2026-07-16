@@ -1,24 +1,6 @@
 # GCode motion controller plugin for TinyG — 4-motor tandem configuration
-#
-# Motor layout (physical: 2 -- 3 -- 1 -- 4):
-#   Motor 1 → X  (X1)
-#   Motor 2 → Y  (Y1)
-#   Motor 3 → A  (X2 tandem — mirrors X)
-#   Motor 4 → B  (Y2 tandem — mirrors Y)
-#
-#   Both X motors (X + A) are commanded together in every X move.
-#   Both Y motors (Y + B) are commanded together in every Y move.
-#
-# Homing strategy — NO LIMIT SWITCHES:
-#   G28.3 X0 Y0 A0 B0  — zeros all four axes at the current position.
-#   No physical movement occurs.  is_homed is set True immediately.
-#
-# Key TinyG communication notes:
-#   - TinyG does NOT reliably echo 'ok' — never block waiting for it.
-#   - Motion completion is detected via JSON status reports {"sr":{"stat":N}}
-#     stat 5=run, 8=cycle → still moving; anything else → idle.
-#   - Active polling uses {"sr":null} JSON query.
-#   - Emergency stop: '!' (feedhold) + '%' (queue flush).
+
+
 
 from scanner.motion_controller import MotionControllerPlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingFloat
@@ -269,8 +251,8 @@ class motion_controller_plugin(MotionControllerPlugin):
         # ── Scanner type (used for boundary limits) ───────────────────────
         self.scanner_type = PluginSettingString(
             "Scanner Type",
-            "N-d Scanner",
-            select_options=["Big Scanner", "N-d Scanner"],
+            "4 axis Scanner",
+            select_options=["Big Scanner", "4 axis Scanner"],
             restrict_selections=True
         )
         self.add_setting_pre_connect(self.scanner_type)
@@ -304,18 +286,6 @@ class motion_controller_plugin(MotionControllerPlugin):
     # ── Connection ────────────────────────────────────────────────────────────
 
     def connect(self):
-        """
-        Open the TinyG serial port.
-
-        Detection order:
-          1. Try each COM port; send M115 and wait 1 s for a TinyG identity.
-          2. If no port identifies itself, fall back to the first port that
-             opened successfully (mirrors the BigTreeTech plugin approach).
-        After connecting:
-          - Sets boundary limits from scanner_type.
-          - Configures G21 (mm) and G91 (incremental).
-          - Does NOT home — call home() explicitly when ready.
-        """
         scanner_type_str = self.scanner_type.value
         if scanner_type_str == "Big Scanner":
             self.x_min, self.x_max = 0.0, 600.0
@@ -325,20 +295,18 @@ class motion_controller_plugin(MotionControllerPlugin):
             self.x_min, self.x_max = 0.0, 300.0
             self.y_min, self.y_max = 0.0, 300.0
             print("Scanner boundaries set: N-d Scanner (300×300 mm)")
-
+ 
         candidates = list(list_ports.comports())
         if not candidates:
             raise ConnectionError("No serial ports found on system")
-
+ 
         print(f"\nAttempting to connect to TinyG across {len(candidates)} serial port(s)...")
         print("Found the following serial ports:")
         for p in candidates:
             print(f"  - {p.device}  ({p.description})")
-
+ 
         confirmed_port: serial.Serial | None = None
-        fallback_port:  serial.Serial | None = None
-        fallback_name:  str | None = None
-
+ 
         for port_info in candidates:
             port = port_info.device
             print(f"\n  Trying {port}...")
@@ -355,11 +323,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             except (serial.SerialException, OSError) as e:
                 print(f"  ✗ Could not open {port}: {e}")
                 continue
-
-            if fallback_port is None:
-                fallback_port = ser
-                fallback_name = port
-
+ 
             time.sleep(0.05)
             ser.reset_input_buffer()
             ser.write(b"M115\n")
@@ -367,44 +331,86 @@ class motion_controller_plugin(MotionControllerPlugin):
             raw = ser.read(ser.in_waiting or 512)
             response = raw.decode("utf-8", errors="replace")
             print(f"  M115 response: {response[:80].strip()!r}")
-
+ 
             if "tinyg" in response.lower() or "firmware" in response.lower():
                 print(f"  ✓ TinyG identity confirmed on {port}")
                 confirmed_port = ser
-                if fallback_port is not ser:
-                    fallback_port.close()
                 break
             else:
-                print(f"  ✗ No TinyG identity (keeping as fallback)")
-
+                print(f"  ✗ No TinyG identity")
+                ser.close()
+ 
         if confirmed_port is not None:
             self.serial_port = confirmed_port
             self.resource_name = confirmed_port.port
-        elif fallback_port is not None:
-            print(f"\n  No TinyG identity on any port — using fallback: {fallback_name}")
-            self.serial_port = fallback_port
-            self.resource_name = fallback_name
+        elif candidates:
+            # No TinyG identity found — ask the user to pick
+            print("\n  No TinyG identity confirmed on any port.")
+            print("  Available ports:")
+            opened = []
+            for i, port_info in enumerate(candidates):
+                print(f"    {i + 1}. {port_info.device}  ({port_info.description})")
+                try:
+                    s = serial.Serial(
+                        port=port_info.device,
+                        baudrate=115200,
+                        bytesize=serial.EIGHTBITS,
+                        parity=serial.PARITY_NONE,
+                        stopbits=serial.STOPBITS_ONE,
+                        timeout=0.1,
+                        write_timeout=2.0,
+                    )
+                    opened.append(s)
+                except Exception:
+                    opened.append(None)
+ 
+            while True:
+                try:
+                    choice = input(f"  Select port [1-{len(candidates)}]: ").strip()
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(candidates):
+                        break
+                    print(f"  Please enter a number between 1 and {len(candidates)}.")
+                except (ValueError, EOFError):
+                    print("  Invalid input — enter a number.")
+ 
+            for i, s in enumerate(opened):
+                if s and i != idx:
+                    try:
+                        s.close()
+                    except Exception:
+                        pass
+ 
+            chosen = opened[idx]
+            if chosen is None:
+                raise ConnectionError(
+                    f"Could not open {candidates[idx].device}. "
+                    "Check USB connection and driver installation."
+                )
+            self.serial_port = chosen
+            self.resource_name = candidates[idx].device
+            print(f"  Using {self.resource_name}")
         else:
             raise ConnectionError(
                 "Could not open any serial port. "
                 "Check USB connection and driver installation."
             )
-
+ 
         print(f"\n✓ Connected to TinyG on {self.resource_name}")
+ 
 
         time.sleep(0.05)
         self.serial_port.reset_input_buffer()
         self.send_gcode_command("G21")   # millimetres
+        
         self.send_gcode_command("G91")   # incremental positioning
 
-        # ── TinyG axis / motor configuration ─────────────────────────────
-        # Force A and B to linear mode so they slave correctly to X and Y.
-        # These are JSON config writes, not GCode — TinyG accepts them inline.
+    
         print("Configuring A axis (X2 tandem) as linear...")
-        self._send_json_config('{"a":{"am":1,"vm":3000,"fr":3000,"tn":-1,"tm":-1}}')
+        self._send_json_config('{"a":{"am":1,"vm":10000,"fr":3000,"tn":-1,"tm":-1}}')
 
         print("Configuring B axis (Y2 tandem) as linear...")
-        self._send_json_config('{"b":{"am":1,"vm":3000,"fr":3000,"tn":-1,"tm":-1}}')
+        self._send_json_config('{"b":{"am":1,"vm":10000,"fr":3000,"tn":-1,"tm":-1}}')
 
         # Motor 3 must map to A only, motor 4 to B only — keeps them off X/Y
         print("Mapping motor 3 → A axis (ma:3)...")
@@ -413,20 +419,22 @@ class motion_controller_plugin(MotionControllerPlugin):
         print("Mapping motor 4 → B axis (ma:4)...")
         self._send_json_config('{"4":{"ma":4}}')
 
-        # Disable soft limits — Python boundary checks handle this,
-        # and TinyG soft limits can falsely trigger mid-scan due to float drift.
-        print("Disabling soft limits on all axes...")
-        self._send_json_config('{"x":{"tn":-1,"tm":-1}}')
-        self._send_json_config('{"y":{"tn":-1,"tm":-1}}')
-        self._send_json_config('{"a":{"tn":-1,"tm":-1}}')
-        self._send_json_config('{"b":{"tn":-1,"tm":-1}}')
-        self._send_json_config('{"2":{"po":1}}')
-        self._send_json_config('{"3":{"po":1}}')
+       
+        self._send_json_config('{"x":{"tn":-1,"tm":-1,"vm":1000,"jm":5000}}')
+        self._send_json_config('{"y":{"tn":-1,"tm":-1,"vm":1000,"jm":5000}}')
+        self._send_json_config('{"a":{"tn":-1,"tm":-1,"vm":1000,"jm":5000}}')
+        self._send_json_config('{"b":{"tn":-1,"tm":-1,"vm":1000,"jm":5000}}')
+
+    
+        self._send_json_config('{"1":{"mi":8}}')
+        self._send_json_config('{"4":{"mi":8}}')
+        self._send_json_config('{"2":{"po":1,"mi":8}}')
+        self._send_json_config('{"3":{"po":1,"mi":8}}')
         MOTOR_CONFIG = {
-            "1": {"tr": 1.0000},
-            "2": {"tr": 1.0000},
-            "3": {"tr": 1.0000},
-            "4": {"tr": 1.0000},
+            "1": {"tr": 72},
+            "2": {"tr": 72},
+            "3": {"tr": 72},
+            "4": {"tr": 72},
         }
 
         print("Applying per-motor travel calibration...")
@@ -456,10 +464,10 @@ class motion_controller_plugin(MotionControllerPlugin):
         return ("mm", "mm")
 
     def set_velocity(self, velocities: dict[int, float] = None) -> None:
-        pass   # velocity set inline with F parameter on each move
+        pass   
 
     def set_acceleration(self, accels: dict[int, float] = None) -> None:
-        pass   # TinyG uses jerk-based planning
+        pass   
 
     def set_config(self, amps, idle_p, idle_time):
         pass
@@ -467,53 +475,18 @@ class motion_controller_plugin(MotionControllerPlugin):
     # ── Motion commands ───────────────────────────────────────────────────────
 
     def move_absolute(self, move_dist: dict[int, float]) -> dict[int, float] | None:
-        """
-        Move each logical axis by a relative delta (incremental mode G91).
 
-        Physical layout: 2 -- 3 -- 1 -- 4
-          axis 0 → X gantry: motors 1 + 2  → sends G0 X<delta> Y<delta>
-          axis 1 → Y gantry: motors 3 + 4  → sends G0 A<delta> B<delta>
-
-        Boundary check is performed before any motion is issued.
-        """
-        if not self.is_homed:
-            raise RuntimeError(
-                "Call home() before moving to establish the coordinate origin."
-            )
-
-        # ── boundary pre-check ───────────────────────────────────────────
-        # Framework passes deltas in units of 0.01 mm; current_position is
-        # stored in those same units. Convert to mm only for the GCode command.
         for axis_idx, delta in move_dist.items():
-            new_pos_mm = (self.current_position[axis_idx] + delta) / 100
+            delta_mm = delta
             if axis_idx == AXIS_X:
-                if new_pos_mm < self.x_min or new_pos_mm > self.x_max:
-                    raise ValueError(
-                        f"LIMIT VIOLATION: X delta {delta/100:+.3f} mm would reach "
-                        f"{new_pos_mm:.3f} mm, outside [{self.x_min}, {self.x_max}]"
-                    )
-            elif axis_idx == AXIS_Y:
-                if new_pos_mm < self.y_min or new_pos_mm > self.y_max:
-                    raise ValueError(
-                        f"LIMIT VIOLATION: Y delta {delta/100:+.3f} mm would reach "
-                        f"{new_pos_mm:.3f} mm, outside [{self.y_min}, {self.y_max}]"
-                    )
-
-        # ── execute ──────────────────────────────────────────────────────
-        # Physical layout: 2 -- 3 -- 1 -- 4
-        #   X rail = motors 1 (X) + 2 (Y) — opposite ends → G0 X<d> Y<d>
-        #   Y rail = motors 3 (A) + 4 (B) — opposite ends → G0 A<d> B<d>
-        for axis_idx, delta in move_dist.items():
-            delta_mm = delta / 100
-            if axis_idx == AXIS_X:
-                self.send_gcode_command(f"G0 X{delta_mm:.4f} Y{delta_mm:.4f} F3000")
+                self.send_gcode_command(f"G0 X{delta_mm:.4f} Y{delta_mm:.4f}")
                 self._wait_for_idle()
-                self.current_position[AXIS_X] += delta_mm * 100
+                self.current_position[AXIS_X] += delta_mm 
 
             elif axis_idx == AXIS_Y:
-                self.send_gcode_command(f"G0 A{delta_mm:.4f} B{delta_mm:.4f} F3000")
+                self.send_gcode_command(f"G0 A{delta_mm:.4f} B{delta_mm:.4f}")
                 self._wait_for_idle()
-                self.current_position[AXIS_Y] += delta_mm * 100
+                self.current_position[AXIS_Y] += delta_mm 
 
             else:
                 print(f"Warning: unknown axis index {axis_idx}, skipping.")
@@ -568,9 +541,13 @@ class motion_controller_plugin(MotionControllerPlugin):
         time.sleep(0.05)
         self._drain_input()
 
-        self.current_position = [0.0, 0.0]
+        self.current_position = [0, 0]
         self.is_homed = True
         print("✓ All axes zeroed at current position. Ready to scan.")
+        
+        self.send_gcode_command(f"G0 Y-250 A-250")
+        
+        
         return {0: 0.0, 1: 0.0}
 
     def show_radar(self):

@@ -271,5 +271,5 @@ def main(address, timeout):
 
 
 if __name__ == "__main__":
-    # main(address="TCPIP0::127.0.0.1::5001::SOCKET", timeout=20000)
-    main(address="TCPIP0::127.0.0.1::inst0::INSTR", timeout=20000)
+    main(address="TCPIP0::10.24.10.12::5001::SOCKET", timeout=20000)
+   # main(address="TCPIP0::10.11.200.15::5001::INSTR", timeout=20000)

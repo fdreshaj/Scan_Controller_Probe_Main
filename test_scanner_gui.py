@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
             # Now show the configuration UI
             controller = self.scanner.scanner.motion_controller
             self.set_configuration_settings_motion(controller._driver, controller.is_connected(), self.connect_motion, self.disconnect_motion)
-            radar_btn = QPushButton("Open Live Radar")
+            radar_btn = QPushButton("Open Console")
 # Access the radar through the motion controller reference
             radar_btn.clicked.connect(self.scanner.scanner.motion_controller.show_radar)
             self.ui.config_layout.addRow(radar_btn)

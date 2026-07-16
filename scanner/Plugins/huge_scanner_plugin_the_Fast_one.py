@@ -96,7 +96,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             timeout=5 #seconds
         )
         scanner_type_str = self.scanner_type.value
-        if scanner_type_str == "Huge Scanner":
+        if scanner_type_str == "Big Scanner":
             self.x_min, self.x_max = 0.0, 1000.0 # adjusted for HUGE scanner
             self.y_min, self.y_max = 0.0, 2000.0 # adjusted for HUGE scanner
             self.z_min, self.z_max = 0.0, 0.0
