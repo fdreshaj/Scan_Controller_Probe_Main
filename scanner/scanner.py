@@ -32,6 +32,7 @@ class Scanner():
         self.signal_scope = signal_scope
         self._pause_event = threading.Event()
         self._pause_event.set()
+        self.prev_point_data_written = False
        
         self._plugin_settings_cache = {}
         
@@ -217,7 +218,7 @@ class Scanner():
                     print("Scan paused. Waiting to resume...")
                     self.handle_pause()
 
-                    
+
                     
                 # Move to position FIRST (except for point 0 where we're already there)
                 if i > 0:
@@ -227,8 +228,18 @@ class Scanner():
                         if self.signal_scope:
                             self.signal_scope.set_lane_active("Motor")
 
-                        if diff_Var[0] > positive_thresh:
-                            self._motion_controller.move_absolute({0: step_size})
+                        if np.all(np.abs(diff_Var) < positive_thresh):
+                            # zero-motion point: no move, nothing to overlap, nothing to join.
+                            # fall straight through to the measurement below.
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                               pass
+                            
+                        elif diff_Var[0] > positive_thresh:
+                            self._motion_controller.move_absolute({0: diff_Var[0]})
                             busy_bit = self._motion_controller.is_moving()
 
 
@@ -237,51 +248,71 @@ class Scanner():
                             if self.signal_scope:
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
 
                             while busy_bit[0] == True:
                                 busy_bit = self._motion_controller.is_moving()
                             
                                 
                         elif diff_Var[0] < negative_thresh:
-                            self._motion_controller.move_absolute({0: negative_step_size})
+                            self._motion_controller.move_absolute({0: diff_Var[0]})
                             busy_bit = self._motion_controller.is_moving()
 
                             
                             if self.signal_scope:
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
+
+
+
+
                             while busy_bit[0] == True:
                                 busy_bit = self._motion_controller.is_moving()
                             
                             
                         if diff_Var[1] > positive_thresh:
-                            self._motion_controller.move_absolute({1: step_size})
+                            self._motion_controller.move_absolute({1: diff_Var[1]})
                             busy_bit = self._motion_controller.is_moving()
                             
                             if self.signal_scope:
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
                             
                             
                             while busy_bit[1] == True:
                                 busy_bit = self._motion_controller.is_moving()
                             
                         elif diff_Var[1] < negative_thresh:
-                            self._motion_controller.move_absolute({1: negative_step_size})
+                            self._motion_controller.move_absolute({1: diff_Var[1]})
                             busy_bit = self._motion_controller.is_moving()
                             
                             if self.signal_scope:
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
 
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
 
 
                             while busy_bit[1] == True:
@@ -289,7 +320,7 @@ class Scanner():
                             
 
                         if diff_Var[2] > positive_thresh:
-                            self._motion_controller.move_absolute({2: step_size})
+                            self._motion_controller.move_absolute({2: diff_Var[2]})
                             busy_bit = self._motion_controller.is_moving()
                             
                             if self.signal_scope:
@@ -301,15 +332,19 @@ class Scanner():
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
 
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
                                 
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
 
 
                         elif diff_Var[2] < negative_thresh:
-                            self._motion_controller.move_absolute({2: negative_step_size})
+                            self._motion_controller.move_absolute({2: diff_Var[2]})
                             busy_bit = self._motion_controller.is_moving()
                             
 
@@ -317,14 +352,23 @@ class Scanner():
                                 self.signal_scope.set_lane_active("File I/O")
                             # self.vna_write_data_bulk(all_s_params_data)
 
-                            self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                            self.vna_thread.start()
+                            if self.prev_point_data_written == False:
+                                self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
+                                self.vna_thread.start()
+                                self.prev_point_data_written = True
+                            else:
+                                pass
+
+
+
+
                             while busy_bit[2] == True:
                                 busy_bit = self._motion_controller.is_moving()
 
                         
                         self.signal_scope.set_lane_idle("Motor")
                         self.vna_thread.join()
+
                     except Exception as e:
                         if self.signal_scope:
                             self.signal_scope.set_lane_idle("Motor")
@@ -468,54 +512,19 @@ class Scanner():
                             # Create zero-padded data with correct shape
                             all_s_params_data[s_param_name] = np.zeros(num_freqs, dtype=complex)
 
+
+
+
                 current_position = self._motion_controller.get_current_positions()
                 
-                # File I/O with error handling
-                # print("Writing to index", self.data_inc)
-                # try:
-                #     if self.signal_scope:
-                #         self.signal_scope.set_lane_active("File I/O")
-
-                #     # self.vna_thread = threading.Thread(target=self.vna_write_data_bulk, args=(all_s_params_data,))
-                #     # self.vna_thread.start()
-                #     # self.vna_thread.join()
-                #     for s_param_name, s_param_values in all_s_params_data.items():
-                #         # Write to bulk arrays (much faster than creating individual groups)
-                #         self.HDF5FILE[f"/Data/{s_param_name}_real"][self.data_inc, :] = np.real(s_param_values)
-                #         self.HDF5FILE[f"/Data/{s_param_name}_imag"][self.data_inc, :] = np.imag(s_param_values)
-                #         print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}")
-        
-
-                #     if self.signal_scope:
-                #         self.signal_scope.set_lane_idle("File I/O")
-                # except Exception as e:
-                #     if self.signal_scope:
-                #         self.signal_scope.set_lane_idle("File I/O")
-
-                #     error_msg = f"File write failed: {str(e)}"
-                #     print(error_msg)
-                #     if self.signal_scope:
-                #         self.signal_scope.freeze_on_error(
-                #             error_msg,
-                #             "File I/O",
-                #             {
-                #                 "point_index": i,
-                #                 "data_inc": self.data_inc,
-                #                 "exception_type": type(e).__name__
-                #             }
-                #         )
-                #     break
                 
-                
-
-                # Call callback for real-time plotting updates
                 if scan_point_callback is not None:
                     try:
                         scan_point_callback(i, all_s_params_data)
                     except Exception as e:
                         print(f"Warning: Scan point callback failed: {e}")
 
-                                
+                self.prev_point_data_written = False
                 bar()
         if all_s_params_data is not None:
             if self.signal_scope:
