@@ -1,0 +1,21 @@
+# Development and test dependencies.
+#
+# Runtime dependencies are listed in the README's pip install line; this file
+# covers only what is needed to run `pytest`.
+#
+#     pip install -r requirements-dev.txt
+#
+# The suite needs Python 3.12+ (scanner/scan_file_1.py uses PEP 701 f-strings)
+# and runs with no hardware attached. Tests whose vendor library is missing
+# skip rather than fail, so this list is deliberately short.
+
+pytest>=8.0
+numpy>=2.0          # scan-pattern geometry
+h5py>=3.10          # scan-file layout round trips
+flake8>=7.0         # the dead-code regression gate in test_static_hygiene.py
+
+# Optional. Installing these widens coverage rather than being required:
+#   pyserial   -> imports the Gcode / TinyG motion plugins
+#   pyvisa     -> imports the VNA plugins
+#   matplotlib -> imports the plotting modules
+#   PySide6    -> imports the Qt GUI modules

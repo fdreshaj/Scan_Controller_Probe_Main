@@ -1,8 +1,6 @@
 
 from scanner.scan_file_controller import ScanFileControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-import tkinter as tk
-from tkinter import filedialog
+from scanner.plugin_setting import PluginSettingString
 from datetime import datetime
 
 
