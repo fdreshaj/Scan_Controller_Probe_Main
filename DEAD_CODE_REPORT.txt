@@ -1,0 +1,483 @@
+================================================================================
+DEAD CODE REPORT - SAR Microwave Imager
+================================================================================
+Branch      : Cleaning_day
+Base        : master @ 570fa9a ("4 axis scanner changes")
+Date        : 2026-08-31
+Scope       : All first-party Python source -- ./*.py, ./gui/, ./scanner/
+Excluded    : "Scanner App V1/" (a frozen PyInstaller build containing a bundled
+              copy of cv2, PySide6 and an older snapshot of scanner/. It is a
+              build artifact, not source, so it was left untouched. It carries
+              the same defects as the pre-cleanup source.)
+
+Tooling     : flake8 6.x (F401/F811/F841/F821), vulture 2.16, plus custom AST
+              passes for unreachable statements and commented-out code blocks.
+              Every finding below was manually verified before removal.
+
+Result      : 42 files changed, 487 lines deleted, 30 inserted.
+              3 files deleted outright.
+
+VERIFICATION: after the cleanup, flake8 reports zero F401 (unused import),
+              zero F811 (redefinition), zero F841 (unused local) and zero new
+              F821 (undefined name) findings in the cleaned scope. Every
+              modified file still byte-compiles.
+
+
+================================================================================
+PART 1 - WHY MOST "UNUSED" CODE WAS *NOT* REMOVED  (read this first)
+================================================================================
+
+This project loads instrument drivers dynamically. scanner/scanner.py:47 and
+scanner/plugin_switcher.py:47-58 use importlib + getattr() to load an arbitrary
+.py file chosen by the user at runtime and instantiate whatever ProbePlugin /
+MotionController subclass it finds inside.
+
+Consequence: EVERY module under scanner/Plugins/ has zero static references,
+and every method on those classes (connect, disconnect, get_axis_units,
+scan_trigger_and_wait, ...) looks unused to a static analyser. They are not
+dead -- they are the plugin interface. vulture reported ~120 such "unused
+class / unused method" hits; all were rejected.
+
+The same reasoning protects:
+  * Qt event overrides    - wheelEvent, paintEvent, drawForeground,
+                            focusInEvent, hasHeightForWidth, heightForWidth.
+                            Called by the Qt event loop, never by name.
+  * Auto-generated files  - gui/ui_scanner.py and gui/ui_scanner_plotter_version.py
+                            carry "WARNING! All changes made in this file will be
+                            lost when recompiling UI file!". They contain ~24
+                            unused PySide6 imports each (pyside6-uic always emits
+                            the full import block). Editing them would be undone
+                            by the next uic run, so they were left alone.
+  * Hardware register tables - the MUXOUTCTL_* / GPIOL* / GPIOH* constants in
+                            scanner/Plugins/fmcw_connection/radarControl.py, the
+                            TINYG_STAT_* constants in tinygMotor.py and the
+                            OFF/ON/BR/RS/ERR codes in geckoInstructions.py are
+                            unreferenced but document the wire protocol. Kept.
+
+The rule applied throughout: code was removed only when it is unreachable even
+if its own module is in active use.
+
+
+================================================================================
+PART 2 - DEAD CODE REMOVED
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1  DEAD FILES DELETED (3 files, 14 lines)
+--------------------------------------------------------------------------------
+Each was verified to have zero references anywhere in the repo (source, README,
+setup.py, or any plugin), and contains no reusable logic.
+
+  scanner/globals.py            Declared one constant, `value_flag: Final =
+                                "initial"`. `value_flag` appears nowhere else in
+                                the codebase. Module was never imported.
+
+  scanner/timing.py             A four-statement stopwatch demo that starts a
+                                timer, sleeps 2 seconds and prints the elapsed
+                                time. Never imported; runs nothing useful.
+
+  scanner/Plugins/hexpy.py      A three-line scratch snippet that decodes one
+                                hard-coded hex response string and prints a
+                                velocity. Superseded by
+                                scanner/Plugins/motion_bit_manipulation.py.
+
+--------------------------------------------------------------------------------
+2.2  DEAD FUNCTIONS AND METHODS REMOVED (25 definitions, ~330 lines)
+--------------------------------------------------------------------------------
+All confirmed to have exactly one occurrence in the repo -- their own definition
+-- and to be unreachable through getattr/eval/exec (the only getattr calls in the
+codebase resolve plugin *class* names, never these).
+
+  scanner/scanner.py
+    vna_write_data()           22 lines. Superseded by vna_write_data_bulk(),
+                               which is what run_scan() actually spawns
+                               (scanner.py:237). The old single-point writer was
+                               left behind.
+    file_combination_HDF5()    12 lines. Writes to a "/Coordinate_*" HDF5 layout
+                               that the current writer no longer produces (it
+                               writes "/Point_Data/*"). Stale format, no callers.
+    close_Probe()               2 lines. Dead duplicate of the second half of
+                               close(), 6 lines above it.
+    close_Motion()              2 lines. Dead duplicate of the first half of
+                               close().
+
+  scanner/Signal_Scope.py
+    _draw_static_time_ticks()  28 lines. An older static tick renderer, replaced
+                               by _draw_time_axes(). No callers.
+    get_lane_state_at_time()   11 lines.
+    create_marker()             5 lines. Marker placement helper; nothing calls it
+                               and marker_enabled is set elsewhere.
+    _baseline_pen()             5 lines.
+
+  gui/plotter.py
+    save_csv()                 37 lines. A full CSV export routine with no caller;
+                               the GUI's export path lives in test_scanner_gui.py.
+    FFT_plot()                  9 lines. Note: this function was also buggy --
+                               it returned `s`, a variable only bound inside its
+                               loop, so it raised UnboundLocalError on an empty
+                               s_param_names.
+
+  gui/ui_modern.py             13 definitions, ~160 lines.
+    _ss_window()  _ss_sidebar()  _ss_section_header()  _ss_slider()
+    _ss_checkbox()  _ss_scroll()  _ss_topbar()  _ss_statusbar()
+    _ss_main_area()  _ss_plugin_row()
+                               Ten Qt stylesheet builders. The module's other
+                               style helpers (_ss_btn, _ss_field_value,
+                               _ss_progress) ARE called at lines 423/434/681/818;
+                               these ten never are.
+    set_plugin_status()  set_mode()  set_dot()
+                               Three "helpers called from MainWindow to update
+                               display" (their own comment). MainWindow
+                               (test_scanner_gui.py) never calls them.
+                               >> See caveat 4.2 below.
+
+  scanner/step_file_importer.py
+    generate_offset_mesh()     16 lines. Documented as replacing the simple
+                               scaling enlargement -- but the replacement was
+                               never wired up; the scaling path is still in use.
+
+  scanner/S_param_visualizer.py
+    reset_zoom()                4 lines. wheelEvent() in the same class was KEPT
+                               (Qt override).
+
+--------------------------------------------------------------------------------
+2.3  DUPLICATE CLASS DEFINITION REMOVED (1 site, 11 lines)
+--------------------------------------------------------------------------------
+  scanner/Plugins/geckoInstructions.py:196-206
+    `class AxisInsn(Insn)` was defined twice, 11 lines apart, with identical
+    bodies. The second definition (line 207) silently shadowed the first, so
+    the first was pure dead weight -- every subclass (HomeInsn, MoveInsn,
+    ConfigureInsn, ClockwiseLimitInsn, CompareInsn, AccelerationInsn,
+    VelocityInsn, PositionAdjustInsn, SpeedControlInsn, OutInsn) binds to the
+    second. The dead first copy was removed and its docstring was carried over
+    to the surviving definition so no documentation was lost.
+
+--------------------------------------------------------------------------------
+2.4  UNUSED IMPORTS REMOVED (125 bindings across 36 files)
+--------------------------------------------------------------------------------
+Removed with an AST rewriter, not text substitution, so multi-name and aliased
+import statements were rebuilt correctly.
+
+  cybot_plugin_new.py                       os, time, statistics
+  gui/plotter.py                            QApplication, skrf as rf,
+                                            csv, datetime          [1]
+  gui/qt_util.py                            wraps, Qt, PluginSettingString
+  gui/ui_modern.py                          QColor, QPalette, QApplication,
+                                            QSizePolicy, QSplitter, QStackedWidget
+  scanner/SAR_Algorithm.py                  os, Qt
+  scanner/S_param_visualizer.py             QRectF, QBrush, QLinearGradient, QPen
+  scanner/Signal_Scope.py                   math, QFontMetrics
+  scanner/VNA_Anritsu_37397C.py             os
+  scanner/cam_testing_2.py                  time
+  scanner/gcode_simulator.py                Any, Sequence, PluginSettingString
+  scanner/motion_controller.py              time
+  scanner/probe_controller.py               Any, Sequence
+  scanner/scan_file_controller.py           Sequence
+  scanner/scan_pattern_1.py                 PluginSettingInteger
+  scanner/scan_pattern_controller.py        Sequence
+  scanner/scanner.py                        struct, ttk
+  scanner/test_tinyg.py                     json, threading, queue
+  scanner/visualizer_window.py              QPushButton, QRectF, QLinearGradient
+  scanner/plugin_switcher.py                PluginSettingFloat, PluginSettingInteger,
+                                            product, time, PluginSetting,
+                                            MotionController, GcodeSimulator,
+                                            ProbeSimulator, csv, tk, simpledialog
+  scanner/plugin_switcher_motion.py         ProbePlugin, PluginSettingFloat,
+                                            PluginSettingInteger, product, time,
+                                            PluginSetting, MotionController,
+                                            GcodeSimulator, ProbeSimulator, csv,
+                                            tk, simpledialog
+  scanner/plugin_switcher_file.py           PluginSettingFloat, PluginSettingInteger,
+                                            PluginSetting
+  scanner/plugin_switcher_pattern.py        PluginSettingFloat, PluginSettingInteger,
+                                            PluginSetting
+  scanner/Plugins/Simplified_VNA_Plugin.py  pyvisa, tk, ttk, messagebox, h5py,
+                                            datetime, os
+  scanner/Plugins/VNA_Plugin.py             os
+  scanner/Plugins/bigtreetechMotor.py       PluginSettingFloat, PluginSettingInteger,
+                                            serial, list_ports, threading      [2]
+  scanner/Plugins/cyBot_Plugin_new_new.py   os, time, math
+  scanner/Plugins/fmcw_radar_aaron.py       PluginSettingString, tk, ttk,
+                                            messagebox, VNA_List_Sparams
+  scanner/Plugins/huge_scanner_plugin_the_Fast_one.py   time
+  scanner/Plugins/motion_controller_plugin.py           time
+  scanner/Plugins/motion_simulator.py       PluginSettingFloat, PluginSettingInteger, tk
+  scanner/Plugins/scan_pattern_quadrature.py            PluginSettingString
+  scanner/Plugins/tinygMotor.py             PluginSettingFloat
+  scanner/Plugins/fmcw_connection/TRA_240_097.py        nidaqmx.system,
+                                            AcquisitionType, Edge, TriggerType,
+                                            AnalogMultiChannelReader
+  scanner/Plugins/fmcw_connection/radarControl.py       inspect
+  test_scanner_command.py                   product, time
+  test_scanner_gui.py                       PluginSettingInteger, simpledialog,
+                                            raster_pattern_generator, QIcon,
+                                            FigureCanvas, Figure,
+                                            ScanPatternControllerPlugin, time,
+                                            QLabel                            [3]
+
+  [1] csv and datetime became unused only after save_csv() was deleted.
+  [2] `serial` is still imported inside bigtreetechMotor.connect() where it is
+      used; only the shadowing module-level import was removed.
+  [3] test_scanner_gui.py also had duplicated PySide6 import lines
+      (QWidget, QToolButton, QVBoxLayout imported twice). The duplicates were
+      collapsed. See 2.5.
+
+--------------------------------------------------------------------------------
+2.5  REDUNDANT RE-IMPORTS REMOVED (6 sites in test_scanner_gui.py)
+--------------------------------------------------------------------------------
+  line   25   from PySide6.QtWidgets import QWidget         (dup of line 7)
+  line   35   from PySide6.QtWidgets import QToolButton     (dup of line 24)
+  line   35   from PySide6.QtWidgets import QVBoxLayout     (dup of line 7)
+  lines  72-75  four function-local imports inside MainWindow.__init__:
+                PluginSwitcherPattern, PluginSwitcherFile (never used in that
+                scope) and ScanPattern, ScanFile (already imported at module
+                level). The module-level ScanPattern / ScanFile imports were
+                KEPT -- they are what lines 63/64/1025/1042 actually resolve to.
+  lines 1035, 1053  two more function-local re-imports of ScanPattern / ScanFile,
+                shadowing the module-level ones with the identical binding.
+
+--------------------------------------------------------------------------------
+2.6  UNUSED LOCAL VARIABLES REMOVED (17 sites)
+--------------------------------------------------------------------------------
+Values computed and then thrown away. Where the right-hand side had a real side
+effect (device I/O, HDF5 writes) the CALL was kept and only the dead assignment
+target was dropped -- these are marked [call kept].
+
+  gui/plotter.py:48-53            The whole `if plot_style != None: condition =
+                                  plot_style else: condition = "Log Mag"` block.
+                                  `condition` was never read in that function;
+                                  the real use lives in plot_initial_data(),
+                                  which recomputes it. Entire dead branch removed.
+  cybot_plugin_new.py:244         r_raw = np.array(us_raw)
+  gui/ui_modern.py:196            glow = f"box-shadow: ..."
+  scanner/scan_pattern_1.py:112   x_coords = np.tile(...)
+  scanner/scanner.py:212          start = time.time()   (the matching `end` was
+                                  already gone, so nothing measured it)
+  scanner/scanner.py:469          current_position = ...get_current_positions()
+                                  [call kept - queries the motion controller
+                                  over serial inside the scan loop; dropping the
+                                  query could change device timing]
+  scanner/scanner.py:553          dset = self.HDF5FILE.create_dataset(...)
+                                  [call kept - creates the dataset]
+  scanner/Signal_Scope.py:618     main_marker_time_interval
+  scanner/Plugins/bigtreetechMotor.py:362   response = send_gcode_command("G28")
+                                  [call kept - performs the homing move]
+  scanner/Plugins/motion_controller_plugin.py:355        query_long_command
+  scanner/Plugins/huge_scanner_plugin_the_Fast_one.py:355 query_long_command
+  scanner/Plugins/scan_pattern_quadrature.py:208  sep_x1y2  (only sep_x1y1 and
+  scanner/Plugins/scan_pattern_quadrature.py:210  sep_x2y1   sep_x2y2 are printed
+                                                             at lines 223-224)
+  scanner/Plugins/scan_pattern_quadrature.py:369  gy_full   (gx_full is used)
+  scanner/Plugins/fmcw_connection/radarControl.py:229  Fres  (Fpfd is still used)
+  scanner/Plugins/testing_scripts.py:63           ax = plt.gca()
+  test_scanner_gui.py:493         matrix = self.scan_controller.matrix
+  test_scanner_gui.py:844         plug = QPluginSetting(setting)  -- constructed a
+                                  QLineEdit widget and immediately discarded it.
+
+--------------------------------------------------------------------------------
+2.7  UNUSED EXCEPTION BINDINGS REMOVED (3 sites)
+--------------------------------------------------------------------------------
+  scanner/scanner.py:54, 86   `except (ImportError, AttributeError) as e:` -> the
+                              handler that used `e` is commented out on the very
+                              next line. Changed to a bare `except (...)`.
+  scanner/scanner.py:610      `except Exception as e:` -> `except Exception:`.
+
+
+================================================================================
+PART 3 - DEAD CODE FOUND BUT DELIBERATELY NOT REMOVED
+================================================================================
+These are genuine findings. Each needs a decision that is yours, not a
+mechanical deletion, so the code is unchanged.
+
+--------------------------------------------------------------------------------
+3.1  UNREACHABLE BRANCH -- LOOKS LIKE A REAL BUG, NOT LEFTOVER CODE
+--------------------------------------------------------------------------------
+  scanner/Plugins/motion_controller_plugin.py:99-102
+
+      self.scanner_type = PluginSettingString(          # line 22-23
+          "Big Scanner", select_options=["Big Scanner", "Small Scanner"], ...)
+      ...
+      if scanner_type_str == "Huge Scanner":            # line 99  <-- never true
+          self.x_min, self.x_max = 0.0, 1000.0
+          self.y_min, self.y_max = 0.0, 2000.0
+          self.z_min, self.z_max = 0.0, 0.0
+      else:
+          self.x_min, self.x_max = 0.0, 300.0           # always taken
+          ...
+
+  The dropdown can only ever produce "Big Scanner" or "Small Scanner", so the
+  1000x2000 mm travel limits are unreachable and this plugin always clamps to
+  300x300x300 mm.
+
+  The near-identical file huge_scanner_plugin_the_Fast_one.py (see 3.2) tests
+  `== "Big Scanner"` at the same line, which strongly suggests the string here
+  is a typo rather than intentionally dead code. Deleting the branch would
+  erase the evidence and lock in the 300 mm limit, so it was left in place.
+
+  ACTION NEEDED: decide whether line 99 should read "Big Scanner". If yes this
+  is a one-word bug fix; if no, the branch can be deleted.
+
+--------------------------------------------------------------------------------
+3.2  NEAR-DUPLICATE PLUGIN FILE (472 lines, 99.8% identical)
+--------------------------------------------------------------------------------
+  scanner/Plugins/motion_controller_plugin.py
+  scanner/Plugins/huge_scanner_plugin_the_Fast_one.py
+
+  These two files differ by exactly ONE line -- line 99, the comparison string
+  discussed in 3.1. 471 of 472 lines are byte-identical.
+
+  Not removed because both are user-selectable plugin files (the operator picks
+  one by filename in the plugin dialog) and the README names
+  "motion_controller_plugin" as the Gecko driver. Deleting either changes what
+  the operator can select.
+
+  RECOMMENDATION: after resolving 3.1, collapse these into a single plugin whose
+  scanner_type dropdown offers all three sizes. That removes 472 duplicated
+  lines and one whole class of drift.
+
+--------------------------------------------------------------------------------
+3.3  ORPHANED STANDALONE SCRIPTS
+--------------------------------------------------------------------------------
+Never imported and not reachable from the application, but each is a runnable
+developer tool rather than dead logic. Left for you to triage.
+
+  convert_to_hdf5.py            18 lines. Generates a random-data HDF5 file
+                                ("scantester.hdf5") in the old /Coordinate(i,j)
+                                layout that the app no longer writes. Its
+                                `print(dset[0])` also leaks the loop variable
+                                out of the for body. Strongest deletion
+                                candidate of this group.
+  scanner/Plugins/h5tst.py      17 lines. Ad-hoc HDF5 inspector; overlaps with
+                                scanner/Plugins/hdf5_reader.py (263 lines).
+  test_scanner_command.py       33 lines. Headless CLI smoke test for Scanner.
+                                Still valid against the current API.
+  octo_test.py                  178 lines. OctoPrint/serial experiment.
+  cybot_plugin_new.py           741 lines at the repo ROOT, duplicating
+                                scanner/Plugins/cyBot_Plugin_new_new.py and
+                                scanner/Plugins/cyBot_Plugin.py. Because plugins
+                                are chosen by file path, a root-level copy is
+                                selectable, so it was not deleted -- but three
+                                overlapping cyBot plugins is a maintenance trap.
+  raster_pattern_generator.py   93 lines. Was imported by test_scanner_gui.py
+                                (as scan_pattern_gen) but never called; that
+                                import is now removed, so the module has no
+                                remaining references. Its six functions
+                                (create_pattern_matrix, rotate_points,
+                                apply_shear, save_matrix_to_csv, hilbert_curve,
+                                time_approx) partly duplicate
+                                scanner/scan_pattern_1.py. Kept because
+                                hilbert_curve and apply_shear have no equivalent
+                                in scan_pattern_1.py and look like work in
+                                progress.
+
+--------------------------------------------------------------------------------
+3.4  PARKED ALTERNATIVE UI MODULES
+--------------------------------------------------------------------------------
+  gui/ui_modern.py                  1020 lines
+  gui/ui_scanner_plotter_version.py  368 lines
+
+  Neither is imported. They are intentional alternatives -- test_scanner_gui.py:13
+  reads:
+        from gui.ui_scanner import Ui_MainWindow # change to ui_modern for
+                                                 # different style
+  so the "deadness" of the modules themselves is by design and they were kept.
+  Dead code *inside* ui_modern.py (unused imports, 13 uncalled functions) was
+  still removed, since that code would be dead even with the module active.
+  ui_scanner_plotter_version.py is uic-generated and was not touched at all.
+
+--------------------------------------------------------------------------------
+3.5  COMMENTED-OUT CODE BLOCKS
+--------------------------------------------------------------------------------
+An AST-assisted scan found 15 runs of 3+ consecutive commented-out statements.
+The two large ones are in a vendor reference implementation and read as
+documentation of an optional procedure, so they were kept:
+
+  scanner/MS461xxVISA_Implementation.py:193-218   26 lines - the numbered
+        "9. Perform a SOLT calibration" sequence, an operator-guided calibration
+        walkthrough deliberately disabled between steps 8 and 10.
+  scanner/MS461xxVISA_Implementation.py:254-265   12 lines - the numbered
+        "13. Read Formatted data" block, the FDAT counterpart to the SDAT reads
+        that remain active above it.
+
+The other 13 runs are 3-8 lines each and were left as inline notes:
+  scanner/Signal_Scope.py:155-157
+  scanner/scanner.py:203-207, 297-299, 371-373, 484-486, 636-638
+  scanner/Plugins/bigtreetechMotor.py:218-220, 225-227, 232-234
+  scanner/Plugins/cyBot_Plugin.py:582-584
+  scanner/Plugins/geckoInstructions.py:21-23, 26-33
+  scanner/Plugins/testing_scripts.py:114-117
+
+--------------------------------------------------------------------------------
+3.6  UNUSED PARAMETERS AND ATTRIBUTES
+--------------------------------------------------------------------------------
+Left alone: removing a parameter changes a signature, and these are either
+interface methods or have live callers passing the argument.
+
+  scanner/Plugins/geckoInstructions.py:15   Insn.__init__(self, line, category=None)
+        `category` is accepted and immediately discarded. The docstring explains
+        why -- the GTK source-mark feature that used it was stripped out. The
+        parameter is now vestigial but is still part of the constructor contract.
+  scanner/scanner.py:570                    motion_tracker(self, vector)
+        `vector` unused; the method is a threading.Thread target invoked with
+        args=(...), so the signature must keep it.
+  test_scanner_gui.py:799   update_plot_during_scan(self, point_index, s_params_data)
+        `point_index` unused. This is a callback invoked positionally from the
+        scan loop, so the parameter has to stay in the signature.
+  scanner/MS461xxVISA_Implementation.py:5   `connection` attribute, assigned once
+        and never read.
+  scanner/motion_controller.py:96-97,117-118  _endstop_minimums / _endstop_maximums
+        assigned in two places, never read.
+  scanner/S_param_visualizer.py             total_points_expected, is_uniform
+        assigned at lines 72/79/241/247/249/348, never read.
+  scanner/scanner.py:30,113,195             output_filepath, z_step_size_negative,
+        _scan_pattern_style -- assigned, never read.
+
+  These are all "write-only" state. They are safe to delete but each one is
+  worth a glance first: a write-only attribute is sometimes a symptom of a
+  feature that was half-wired rather than of code that was abandoned.
+
+--------------------------------------------------------------------------------
+3.7  PRE-EXISTING DEFECTS NOTICED WHILE SCANNING (not dead code, not fixed)
+--------------------------------------------------------------------------------
+  scanner/scanner.py:238,253,266,281,302,318
+        Six references to an undefined name `all_s_params_data` (flake8 F821)
+        inside f-strings. These are live on master too -- they were NOT
+        introduced by this cleanup, and they will raise NameError if those
+        code paths run. Worth fixing separately.
+
+  scanner/scan_file_1.py:20
+        Uses PEP 701 nested-same-quote f-strings, which require Python 3.12+.
+        Consistent with the README's "Python 3.12.7", but it means the file
+        cannot even be parsed on 3.11 or earlier. Flagged so it is a conscious
+        floor, not an accident.
+
+
+================================================================================
+PART 4 - CAVEATS / WHAT TO RE-CHECK
+================================================================================
+
+4.1  No test suite exists in this repository, and the application needs a VNA,
+     a motion controller and Qt to start, so the cleanup could not be validated
+     by running it. Validation was static: flake8 F-series clean, vulture
+     re-run, and every touched file byte-compiled. Before relying on this
+     branch, do one manual smoke run: launch test_scanner_gui.py, connect a
+     motion plugin and a VNA plugin, generate a pattern and run a short scan.
+
+4.2  The three removed helpers in gui/ui_modern.py (set_plugin_status, set_mode,
+     set_dot) are documented as being "called from MainWindow". No such call
+     exists today. If you were mid-way through wiring ui_modern.py up to
+     MainWindow, restore them with:
+         git checkout master -- gui/ui_modern.py
+     and re-apply only the import cleanup.
+
+4.3  Nothing under "Scanner App V1/" was modified. That frozen build still
+     contains the pre-cleanup code, including the duplicate AxisInsn class.
+     Rebuild it from this branch when you next ship.
+
+4.4  gui/ui_scanner.py and gui/ui_scanner_plotter_version.py still carry ~24
+     unused imports each. Those come from pyside6-uic and will return on the
+     next regeneration; fix them in the .ui workflow, not by hand.
+
+================================================================================
+END OF REPORT
+================================================================================

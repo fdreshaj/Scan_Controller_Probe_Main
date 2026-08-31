@@ -3,7 +3,7 @@
 
 
 from scanner.motion_controller import MotionControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingFloat
+from scanner.plugin_setting import PluginSettingString
 import serial
 from serial.tools import list_ports
 import time

@@ -1,6 +1,5 @@
 from scanner.motion_controller import MotionControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-import tkinter as tk
+from scanner.plugin_setting import PluginSettingString
 
 class motion_controller_plugin(MotionControllerPlugin):
 

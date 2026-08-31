@@ -1,9 +1,5 @@
 from scanner.probe_controller import ProbePlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
-import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
+from scanner.plugin_setting import PluginSettingInteger, PluginSettingFloat
 import re
 import numpy as np
 import scanner.Plugins.fmcw_connection.TRA_240_097 as fmcw_connection   

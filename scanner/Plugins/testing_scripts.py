@@ -60,7 +60,6 @@ class GridGenerator:
         Plots the anchors, grid, HQ, Target, and the resulting vector.
         """
         plt.figure(figsize=(10, 10))
-        ax = plt.gca() # Get current axes
 
         # 1. Plot the Grid Points (small grey dots)
         gx, gy = zip(*grid_points_flat) if grid_points_flat else ([],[])

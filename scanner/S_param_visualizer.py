@@ -9,10 +9,8 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QGraphicsPixmapItem, QSlider
 )
-from PySide6.QtCore import Qt, QTimer, QRectF
-from PySide6.QtGui import (
-    QPen, QPainter, QBrush, QColor, QLinearGradient, QFont, QImage, QPixmap
-)
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPainter, QColor, QFont, QImage, QPixmap
 import h5py
 import numpy as np
 
@@ -50,10 +48,6 @@ class ZoomableGraphicsView(QGraphicsView):
         
         event.accept()
     
-    def reset_zoom(self):
-        """Reset zoom to 1:1"""
-        self.resetTransform()
-        self.current_zoom = 1.0
 
 class VisualizerWindow(QWidget):
     

@@ -8,8 +8,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QPushButton,  QHBoxLayout
 from PySide6.QtGui import QFont
 import time
-import math
-from PySide6.QtGui import QFontMetrics
 import json
 import datetime
 import os
@@ -192,11 +190,6 @@ class SignalScope(QWidget):
         bg = self.palette().color(QPalette.Window)
         return bg.lightness() < 128
 
-    def _baseline_pen(self):
-        color = Qt.white if self._is_dark_theme() else Qt.black
-        pen = QPen(color)
-        pen.setWidthF(0.6)
-        return pen
 
     def _border_pen(self):
         color = Qt.white if self._is_dark_theme() else Qt.black
@@ -217,11 +210,6 @@ class SignalScope(QWidget):
             return LANE_COLORS_DARK[lane_name]
         else:
             return LANE_COLORS_LIGHT[lane_name]
-    def create_marker(self):
-        # Place marker at fixed screen position (e.g. 60% width)
-        self.marker_x = int(self.view.viewport().width() * 0.6)
-        self.marker_enabled = True
-        self.view.viewport().update()
         
     def _marker_pen(self):
         color = Qt.white if self._is_dark_theme() else Qt.black
@@ -574,34 +562,6 @@ class SignalScope(QWidget):
     # -------------------------------
     # Static time ruler (foreground)
     # -------------------------------
-    def _draw_static_time_ticks(self, painter: QPainter, width: int, height: int):
-        pen_minor = self._tick_pen(False)
-        pen_major = self._tick_pen(True)
-
-        seconds_per_minor = 0.1
-        seconds_per_major = 1.0
-
-        pixels_per_sec = PIXELS_PER_SEC
-
-        # Right edge = "now"
-        t_now = time.perf_counter() - self.start_time
-
-        visible_time = width / pixels_per_sec
-        t_start = t_now - visible_time
-
-        t = t_start - (t_start % seconds_per_minor)
-
-        while t < t_now:
-            x = int((t - t_start) * pixels_per_sec)
-
-            is_major = abs(t % seconds_per_major) < 1e-3
-            pen = pen_major if is_major else pen_minor
-            tick_len = 14 if is_major else 7
-
-            painter.setPen(pen)
-            painter.drawLine(x, 0, x, tick_len)
-        
-            t += seconds_per_minor
 
     def _label_pen(self):
         return Qt.white if self._is_dark_theme() else Qt.black
@@ -615,7 +575,6 @@ class SignalScope(QWidget):
         """Draw static relative time axis with main markers and submarkers on each lane."""
         # Main marker spacing (100 pixels = 0.2 seconds at 500 pixels/sec)
         main_marker_spacing_pixels = 100
-        main_marker_time_interval = main_marker_spacing_pixels / PIXELS_PER_SEC  # 0.2 seconds
 
         # Submarker spacing (20 pixels = 0.04 seconds at 500 pixels/sec)
         submarker_spacing_pixels = 20
@@ -804,15 +763,4 @@ class SignalScope(QWidget):
             self.lane_states[lane_name] = False
             self.state_history.append((current_time, lane_name, False))
 
-    def get_lane_state_at_time(self, lane_name: str, t: float) -> bool:
-        """Get the state of a lane at a specific time based on history."""
-        state = False  # Default to idle
-
-        for timestamp, name, new_state in self.state_history:
-            if name == lane_name and timestamp <= t:
-                state = new_state
-            elif timestamp > t:
-                break
-
-        return state
 

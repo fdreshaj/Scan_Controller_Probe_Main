@@ -7,7 +7,7 @@ from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from tkinter import messagebox
 import numpy as np
 #from scan_pattern_controller import ScanPatternControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
+from scanner.plugin_setting import PluginSettingString, PluginSettingFloat
 import matplotlib.pyplot as plt
 
 class ScanPattern(ScanPatternControllerPlugin):
@@ -109,7 +109,6 @@ class ScanPattern(ScanPatternControllerPlugin):
     def create_pattern_matrix_generalized(self,rows, cols):
         
 
-        x_coords = np.tile(np.arange(cols), rows)
 
         y_coords = []
         

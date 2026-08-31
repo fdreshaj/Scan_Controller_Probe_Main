@@ -1,9 +1,6 @@
 import socket
 import threading
-import os
-import time 
 import re
-import math
 from datetime import datetime
 from scanner.probe_controller import ProbePlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger

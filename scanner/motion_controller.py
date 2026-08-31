@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from typing import Sequence
 
 from scanner.plugin_setting import PluginSetting
-import time
 
 class MotionControllerPlugin(ABC):
     settings_pre_connect: list[PluginSetting]

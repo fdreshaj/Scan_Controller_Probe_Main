@@ -1,7 +1,6 @@
 
-from typing import Sequence, Any
 
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger
+from scanner.plugin_setting import PluginSettingInteger
 from scanner.motion_controller import MotionControllerPlugin
 
 import zmq

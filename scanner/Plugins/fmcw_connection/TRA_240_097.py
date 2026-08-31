@@ -2,9 +2,6 @@
 import scanner.Plugins.fmcw_connection.radarControl as rc
 import scanner.Plugins.fmcw_connection.daqControl as dc
 import numpy as np
-import nidaqmx.system
-from nidaqmx.constants import (AcquisitionType, Edge, TriggerType)
-from nidaqmx.stream_readers import AnalogMultiChannelReader
 
 class TRA_240_097:
     """Class for TRA_240-097 based FMCW radar. 

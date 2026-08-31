@@ -196,15 +196,6 @@ class Insn(AddressMark):
 class AxisInsn(Insn):
     """ABC for all axis-specific instructions i.e. the opcode starts with X,Y,Z or W.
     """
-    def __init__(self, line, axis): # Removed 'tab'
-        """axis parameter is 0,1,2,3 for X,Y,Z,W respectively"""
-        super(AxisInsn, self).__init__(line) # Removed 'tab'
-        self.axis = axis
-        self.set_upper_2(axis)
-
-    def is_chained(self):
-        return self.get_chain()
-class AxisInsn(Insn):
     def __init__(self, line, axis):
         super(AxisInsn, self).__init__(line)
         self.axis = axis

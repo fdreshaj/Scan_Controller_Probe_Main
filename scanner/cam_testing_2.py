@@ -13,7 +13,6 @@ from PIL import Image, ImageTk
 import datetime
 import os
 import threading
-import time
 
 class CameraApp:
     def __init__(self, window, window_title="Camera App"):

@@ -1,16 +1,9 @@
 from scanner.probe_controller import ProbePlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
 from scanner.MS461xxVISA_Implementation import InstrumentConnection
-import pyvisa
-import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox
 import scanner.Plugins.VNA_List_Sparams as VNA_List_Sparams
 import re
-import h5py
 import numpy as np
-from datetime import datetime
-import os
 ### This plugin is for the MS46524B 4 port VNA, 
 
 

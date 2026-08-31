@@ -22,14 +22,8 @@ Widget name compatibility map (old → still present here):
 """
 
 from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QFont, QColor, QPalette
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QFormLayout,
-    QFrame, QLabel, QPushButton, QDoubleSpinBox,
-    QProgressBar, QLineEdit, QCheckBox, QSizePolicy,
-    QScrollArea, QSplitter, QStackedWidget, QApplication,
-    QGridLayout,
-)
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QFormLayout, QFrame, QLabel, QPushButton, QDoubleSpinBox, QProgressBar, QLineEdit, QCheckBox, QScrollArea, QGridLayout
 from gui.qt_util import QAxisPositionSlider
 
 
@@ -81,35 +75,10 @@ T = _DARK if THEME == "dark" else _CYBER
 # ---------------------------------------------------------------------------
 # Stylesheet helpers
 # ---------------------------------------------------------------------------
-def _ss_window():
-    return f"""
-        QMainWindow, QWidget#central {{
-            background: {T['bg0']};
-            color: {T['text']};
-        }}
-    """
 
 
-def _ss_sidebar():
-    return f"""
-        QWidget#sidebar {{
-            background: {T['bg1']};
-            border-right: 1px solid {T['border2']};
-        }}
-    """
 
 
-def _ss_section_header():
-    return f"""
-        QLabel {{
-            color: {T['muted']};
-            font-size: 9px;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            padding: 8px 14px 4px 14px;
-            background: {T['bg1']};
-        }}
-    """
 
 
 def _ss_field_value():
@@ -193,7 +162,6 @@ def _ss_btn(style="normal"):
 
 def _ss_progress():
     accent = T['accent2'] if THEME == "dark" else T['accent']
-    glow = f"box-shadow: 0 0 6px {accent};" if THEME == "cyber" else ""
     return f"""
         QProgressBar {{
             background: {T['border']};
@@ -208,130 +176,18 @@ def _ss_progress():
     """
 
 
-def _ss_slider():
-    return f"""
-        QSlider::groove:horizontal {{
-            background: {T['border']};
-            height: 2px;
-        }}
-        QSlider::handle:horizontal {{
-            background: {T['accent2']};
-            width: 8px; height: 8px;
-            margin: -3px 0;
-            border-radius: 4px;
-        }}
-        QSlider::groove:vertical {{
-            background: {T['border']};
-            width: 2px;
-        }}
-        QSlider::handle:vertical {{
-            background: {T['accent2']};
-            width: 8px; height: 8px;
-            margin: 0 -3px;
-            border-radius: 4px;
-        }}
-    """
 
 
-def _ss_checkbox():
-    return f"""
-        QCheckBox {{
-            color: {T['muted']};
-            font-size: 10px;
-            spacing: 6px;
-        }}
-        QCheckBox::indicator {{
-            width: 10px; height: 10px;
-            border: 1px solid {T['border2']};
-            background: {T['bg0']};
-        }}
-        QCheckBox::indicator:checked {{
-            background: {T['ok']};
-            border: 1px solid {T['ok']};
-        }}
-    """
 
 
-def _ss_scroll():
-    return f"""
-        QScrollArea {{ border: none; background: transparent; }}
-        QScrollBar:vertical {{
-            background: {T['bg1']};
-            width: 4px;
-            border: none;
-        }}
-        QScrollBar::handle:vertical {{
-            background: {T['border2']};
-            border-radius: 2px;
-        }}
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
-    """
 
 
-def _ss_topbar():
-    return f"""
-        QWidget#topbar {{
-            background: {T['bg1']};
-            border-bottom: 1px solid {T['border2']};
-        }}
-        QLabel#logo {{
-            color: {T['accent']};
-            font-size: 12px;
-            font-weight: bold;
-            letter-spacing: 3px;
-        }}
-        QLabel#tb_key {{
-            color: {T['muted']};
-            font-size: 9px;
-            letter-spacing: 2px;
-        }}
-        QLabel#tb_val {{
-            color: {T['accent2']};
-            font-size: 10px;
-        }}
-    """
 
 
-def _ss_statusbar():
-    return f"""
-        QWidget#statusbar_w {{
-            background: {T['bg1']};
-            border-top: 1px solid {T['border2']};
-        }}
-        QLabel {{
-            color: {T['muted']};
-            font-size: 9px;
-            letter-spacing: 1px;
-        }}
-        QLabel#sb_val {{
-            color: {T['accent2']};
-        }}
-    """
 
 
-def _ss_main_area():
-    return f"""
-        QWidget#main_area {{
-            background: {T['bg0']};
-        }}
-    """
 
 
-def _ss_plugin_row():
-    return f"""
-        QWidget#plugin_row {{
-            background: {T['bg2']};
-            border: 1px solid {T['border']};
-        }}
-        QLabel#plug_name {{
-            color: {T['accent2']};
-            font-size: 11px;
-        }}
-        QLabel#plug_status {{
-            font-size: 9px;
-            letter-spacing: 1px;
-        }}
-    """
 
 
 # ---------------------------------------------------------------------------
@@ -992,29 +848,5 @@ class Ui_MainWindow:
         pass
 
     # -- helpers called from MainWindow to update display -------------------
-    def set_plugin_status(self, plugin, status, connected=False):
-        """plugin: 'motion'|'probe'|'pattern'|'file'"""
-        color = T['ok'] if connected else T['warn'] if status else T['dim']
-        row = {
-            "motion":  self._plug_motion,
-            "probe":   self._plug_probe,
-            "pattern": self._plug_pattern,
-            "file":    self._plug_file,
-        }.get(plugin)
-        if row:
-            row.set_status(status or "—", color)
 
-    def set_mode(self, mode, color=None):
-        self._mode_label.setText(mode.upper())
-        c = color or T['muted']
-        self._mode_label.setStyleSheet(f"""
-            color: {c}; font-size: 10px; letter-spacing: 2px;
-            border: 1px solid {T['border2']}; padding: 2px 8px;
-        """)
 
-    def set_dot(self, which, connected):
-        dot = {"motion": self._dot_motion, "probe": self._dot_probe,
-               "file": self._dot_file}.get(which)
-        if dot:
-            c = T['ok'] if connected else T['dim']
-            dot.setStyleSheet(f"color: {c}; font-size: 7px; padding: 0 2px;")

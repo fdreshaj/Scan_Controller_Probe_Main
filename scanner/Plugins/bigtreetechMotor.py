@@ -1,11 +1,8 @@
 #Gcode motion controller plugin for BigTreeTech motor controllers using PyVISA
 
 from scanner.motion_controller import MotionControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-import serial
-from serial.tools import list_ports
+from scanner.plugin_setting import PluginSettingString
 import pyvisa
-import threading
 
 class motion_controller_plugin(MotionControllerPlugin):
     def __init__(self):
@@ -359,7 +356,7 @@ class motion_controller_plugin(MotionControllerPlugin):
             axes = [0, 1, 2]  # Home all axes by default
 
         print(f"Homing axes {axes}")
-        response = self.send_gcode_command("G28")
+        self.send_gcode_command("G28")
 
         # Wait for homing to complete
         movement = self.is_moving()

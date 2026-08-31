@@ -2,12 +2,10 @@
 import h5py
 import numpy as np
 import sys
-import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QFileDialog, QApplication, QDoubleSpinBox
 )
-from PySide6.QtCore import Qt
 
 class sar_window(QWidget):
     def __init__(self):

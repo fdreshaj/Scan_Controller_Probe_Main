@@ -4,7 +4,6 @@ from scanner.MS461xxVISA_Implementation import InstrumentConnection
 import numpy as np
 import skrf as rf
 import csv 
-import os 
 import matplotlib.pyplot as plt
 import re
 from datetime import datetime

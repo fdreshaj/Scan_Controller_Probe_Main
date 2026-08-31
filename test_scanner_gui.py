@@ -1,12 +1,11 @@
 ## IMPORTS 
 #region Imports
 import os
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
+from scanner.plugin_setting import PluginSettingString, PluginSettingFloat
 from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
 import tkinter as tk
-from tkinter import simpledialog
 from tkinter import filedialog as fd
 from tkinter import messagebox
 import threading
@@ -15,24 +14,18 @@ from gui.ui_scanner import Ui_MainWindow # change to ui_modern for different sty
 from gui.qt_util import QPluginSetting
 import gui.select_plot_style as select_plot_style
 import gui.select_plot_hide as select_plot_hide
-import raster_pattern_generator as scan_pattern_gen
 import numpy as np
 import matplotlib
 import qdarktheme
 import datetime
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QToolButton
-from PySide6.QtWidgets import QWidget, QHBoxLayout
+from PySide6.QtWidgets import QHBoxLayout
 matplotlib.use('QtAgg') 
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas 
-from matplotlib.figure import Figure
 from  gui.plotter import plotter_system
 from scanner.scan_pattern_1 import ScanPattern
-from scanner.scan_pattern_controller import ScanPatternControllerPlugin
 from scanner.scan_file_1 import ScanFile
 from scanner.cam_testing_2 import CameraApp as CameraApp
-import time     
-from PySide6.QtWidgets import QToolButton, QDialog, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QDialog
 from scanner.Signal_Scope import SignalScope 
 from scanner.S_param_visualizer import VisualizerWindow
 from scanner.step_file_importer import ndwindow
@@ -69,10 +62,6 @@ class MainWindow(QMainWindow):
         self.scanner = ScannerQt(signal_scope=self.signal_scope)
         self.plotter = plotter_system()
         self.back_btn_check = False
-        from scanner.plugin_switcher_pattern import PluginSwitcherPattern
-        from scanner.plugin_switcher_file import PluginSwitcherFile
-        from scanner.scan_pattern_1 import ScanPattern
-        from scanner.scan_file_1 import ScanFile
         self.scan_controller = ScanPattern()
         self.file_controller = ScanFile()
         self.motion_config_counter = 0
@@ -490,7 +479,6 @@ class MainWindow(QMainWindow):
             ### TESTING
             self.step_size = self.scan_controller.float_step_size
             self.length = self.scan_controller.y_axis_len
-            matrix = self.scan_controller.matrix 
             self.scan_testing()      
             ### TESTING
         else:
@@ -841,7 +829,6 @@ class MainWindow(QMainWindow):
         self.metaData=[]
         inc = 0
         for setting in self.file_controller.settings_pre_connect:
-            plug = QPluginSetting(setting)
             self.metaData.append(PluginSettingString.get_value_as_string(self.file_controller.settings_pre_connect[inc]))
             inc = inc +1
 
@@ -1032,7 +1019,6 @@ class MainWindow(QMainWindow):
         )
         if response:
             from scanner.plugin_switcher_pattern import PluginSwitcherPattern
-            from scanner.scan_pattern_1 import ScanPattern
             PluginSwitcherPattern.plugin_name = ""
             PluginSwitcherPattern.basename = ""
             self.scan_controller.disconnect()
@@ -1050,7 +1036,6 @@ class MainWindow(QMainWindow):
         )
         if response:
             from scanner.plugin_switcher_file import PluginSwitcherFile
-            from scanner.scan_file_1 import ScanFile
             PluginSwitcherFile.plugin_name = ""
             PluginSwitcherFile.basename = ""
             self.file_controller.disconnect()

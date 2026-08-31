@@ -1,13 +1,10 @@
 # gui/plotter.py
 import numpy as np
-import csv
-from datetime import datetime
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QApplication
+from PySide6.QtWidgets import QWidget, QVBoxLayout
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 from scanner.Plugins.Simplified_VNA_Plugin import VNA_Plugin # Ensure this import is correct
-import skrf as rf
 import scipy.fft as fft
 class plotter_system(QWidget):
 
@@ -46,12 +43,6 @@ class plotter_system(QWidget):
             if not s_param_names:
                 print("No S-parameters selected for data processing.")
                 return None, None, None
-            if plot_style != None:
-                
-                condition = plot_style
-            else:
-                condition = "Log Mag"
-            
             return freqs, s_param_names,all_s_params_data
 
         except Exception as e:
@@ -163,15 +154,6 @@ class plotter_system(QWidget):
             plt.show()
         return s
     
-    def FFT_plot(self, s_param_names, time_domain_data):
-        t = np.arange(501)
-        
-        for name in s_param_names:    
-            s = fft.ifft(time_domain_data[name])
-            plt.plot(t, s.real, 'b-', t, s.imag, 'r--')
-            plt.legend(('real', 'imaginary'))
-            plt.show()   
-        return s 
     
     def set_trace_visibility(self, s_param_name: str):
        
@@ -194,42 +176,5 @@ class plotter_system(QWidget):
                 if self.popup_figure is not None:
                     print(f"WARNING: Trace '{name}' not found for pop-up plot visibility toggle.")
                     
-    def save_csv(self, filename=None):
-        if self.plugin is None or self.plugin.vna is None:
-            print("Cannot save: VNA plugin not connected or not provided.")
-            return
-
-        if filename is None:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"s_parameters_data_{ts}.csv"
-
-        try:
-            self.freqs = np.array(self.plugin.get_xaxis_coords())
-            all_s_params_data = self.plugin.scan_read_measurement(0, ())
-
-            s_param_names = self.plugin.get_channel_names()
-            if not s_param_names:
-                print("No S-parameters selected to save.")
-                return
-
-            header = ["Frequency (Hz)"]
-            cols_to_write = [self.freqs]
-
-            for name in s_param_names:
-                s_data = np.array(all_s_params_data[name])
-                header.extend([f"{name}_Real", f"{name}_Imag"])
-                cols_to_write.extend([s_data.real, s_data.imag])
-
-            with open(filename, "w", newline="") as f:
-                w = csv.writer(f)
-                w.writerow([])
-                w.writerow(header)
-                for row in zip(*cols_to_write):
-                    w.writerow(row)
-
-            print(f"Saved {len(self.freqs)} rows with {len(s_param_names)} S-parameters to {filename}")
-
-        except Exception as e:
-            print(f"Error during save operation: {e}")
             
             

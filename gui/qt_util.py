@@ -1,12 +1,11 @@
 
-from functools import wraps
 import math
 
 from PySide6.QtGui import QFocusEvent
 from PySide6.QtWidgets import QSlider, QWidget, QLineEdit, QCompleter
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Slot
 
-from scanner.plugin_setting import PluginSetting, PluginSettingString
+from scanner.plugin_setting import PluginSetting
 
 
 class QPluginSetting(QLineEdit):

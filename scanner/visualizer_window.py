@@ -1,11 +1,6 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
-    QPushButton, QLabel, QComboBox
-)
-from PySide6.QtCore import Qt, QTimer, QRectF
-from PySide6.QtGui import (
-    QPen, QPainter, QBrush, QColor, QLinearGradient, QFont
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout, QLabel, QComboBox
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPen, QPainter, QBrush, QColor, QFont
 import h5py
 import numpy as np
 

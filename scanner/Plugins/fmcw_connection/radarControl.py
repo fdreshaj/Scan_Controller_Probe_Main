@@ -1,7 +1,6 @@
 import time
 import ftd2xx as ftd
 import numpy as np
-import inspect
 
 #ADF4159 PLL Constants
 SINGLE_SAW_TOOTH = 2
@@ -226,7 +225,6 @@ def getPllSweepKwargs(**kwargs):
     kwargs["clkDivMode"] = 0x3
     # calculate dev offset
     Fpfd = getFpfd(**kwargs)
-    Fres  = Fpfd/2**25
     Fdev = ((float(kwargs["stopFreqGHz"]) - float(kwargs["startFreqGHz"]))/((kwargs["refIn"]*1e-6/2/1000)*kwargs["extPrescale"]))/(int(kwargs["nFreqPoints"]) - 1)
     
     kwargs["devOffset"] = int(np.ceil(np.log2(Fdev * 2**25)) - 14)

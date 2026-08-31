@@ -5,7 +5,6 @@ from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, Pl
 import serial
 from serial.tools import list_ports
 from scanner.Plugins import geckoInstructions
-import time
 import tkinter as tk
 from tkinter import messagebox
 
@@ -352,7 +351,6 @@ class motion_controller_plugin(MotionControllerPlugin):
         
         
     def home(self, axes=None):
-        query_long_command = bytes([0x08, 0x00])
         # Prompt user to manually home and place scanner in middle X/Y
         try:
             root = tk.Tk()

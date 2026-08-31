@@ -117,7 +117,7 @@ if "scanner" not in sys.modules:
     sys.modules["scanner.plugin_setting"]           = _ps_mod
 
 from scanner.scan_pattern_controller import ScanPatternControllerPlugin
-from scanner.plugin_setting import PluginSettingFloat, PluginSettingString
+from scanner.plugin_setting import PluginSettingFloat
 
 
 class ScanPattern(ScanPatternControllerPlugin):
@@ -204,10 +204,6 @@ class ScanPattern(ScanPatternControllerPlugin):
         # ── Bistatic separation stats (all 4 pairs) ───────────────────────
         # S(X1←Y1)
         sep_x1y1 = np.sqrt((self.x1_positions - self.matrix[0] * step)**2 +
-                           (self.y1_positions - self.matrix[1] * step)**2)
-        sep_x1y2 = np.sqrt((self.x1_positions - self.matrix[0] * step)**2 +
-                           (self.y2_positions - self.matrix[1] * step)**2)
-        sep_x2y1 = np.sqrt((self.x2_positions - self.matrix[0] * step)**2 +
                            (self.y1_positions - self.matrix[1] * step)**2)
         sep_x2y2 = np.sqrt((self.x2_positions - self.matrix[0] * step)**2 +
                            (self.y2_positions - self.matrix[1] * step)**2)
@@ -366,7 +362,6 @@ class ScanPattern(ScanPatternControllerPlugin):
         # Bistatic separations for all 4 pairs (mm)
         # X antennas sit at (x1/x2, gantry_y); Y antennas at (gantry_x, y1/y2)
         gx_full = self.matrix[0] * step
-        gy_full = self.matrix[1] * step
         sep = {
             "X1←Y1": np.sqrt((x1 - gx_full[::stride])**2 + (gy[::stride] - y1)**2),  # noqa
             "X1←Y2": np.sqrt((x1 - gx_full[::stride])**2 + (gy[::stride] - y2)**2),

@@ -9,11 +9,9 @@ import threading
 import datetime
 import time 
 import os
-import struct
 #from npy_append_array import NpyAppendArray
 import h5py
 import tkinter as tk
-from tkinter import ttk
 from alive_progress import alive_bar
 
 
@@ -53,7 +51,7 @@ class Scanner():
                 
     
                 
-            except (ImportError, AttributeError) as e:
+            except (ImportError, AttributeError):
                 #print(f"Error loading plugin {PluginSwitcher.plugin_name} from {plugin_module_name}: {e}")
                
                 self.plugin_Probe = PluginSwitcher()
@@ -85,7 +83,7 @@ class Scanner():
                 
                 self.plugin_Motion = motion_class()
                 
-            except (ImportError, AttributeError) as e:
+            except (ImportError, AttributeError):
         
                 self.plugin_Motion = PluginSwitcherMotion()        
                 
@@ -211,7 +209,6 @@ class Scanner():
 
         with alive_bar(len(matrix[0])) as bar:
             for i in range(len(matrix[0])):
-                start = time.time()
 
                 if self.pause:
                     print("Scan paused. Waiting to resume...")
@@ -468,7 +465,7 @@ class Scanner():
                             # Create zero-padded data with correct shape
                             all_s_params_data[s_param_name] = np.zeros(num_freqs, dtype=complex)
 
-                current_position = self._motion_controller.get_current_positions()
+                self._motion_controller.get_current_positions()
                 
                 # File I/O with error handling
                 # print("Writing to index", self.data_inc)
@@ -540,28 +537,6 @@ class Scanner():
        
         return all_s_params_data
         
-    def vna_write_data(self,all_s_params_data):
-        
-        start_data = time.time()
-        self.HDF5FILE.create_group(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}")
-        for s_param_name, s_param_values in all_s_params_data.items():
-            
-            
-            
-            
-            
-            self.HDF5FILE.create_group(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}/{s_param_name}")
-            
-            dset = self.HDF5FILE.create_dataset(f"/Point_Data/{self.matrix_copy[:,self.data_inc]}/{s_param_name}/data",data=s_param_values)
-            print(f"s_param_name: {s_param_name}, shape: {s_param_values.shape}, type: {s_param_values.dtype}, values: {s_param_values}")
-            
-        
-            
-        end = time.time()
-        
-        self.motion_tracker_thread = threading.Thread(target=self.motion_tracker, args=(self.matrix_copy[:,self.data_inc],))
-        self.motion_tracker_thread.start()
-        self.time_linearity_test.append(end - start_data)
     
     def vna_write_data_bulk(self, all_s_params_data):
         
@@ -609,7 +584,7 @@ class Scanner():
                 
             pass
           
-        except Exception as e:
+        except Exception:
                       
             header = f""
             header_encoding = header.encode("utf-8")
@@ -631,18 +606,6 @@ class Scanner():
         #     finally:
         #         self.output_file_handle = None
         
-    def file_combination_HDF5(self,matrix,freq,s_param_magnitudes,s_param_names):
-       
-        # s_param_names=self._probe_controller.get_channel_names()
-        # s_param_magnitudes = [] #numpy array 
-        # freq = []
-        
-        for i in range(0,len(matrix[0])):
-            
-            
-            for j in range(0,len(s_param_names)):
-                self.HDF5FILE[f"/Coordinate_{matrix[:,i]}/{s_param_names[j]}/Frequencies"] = freq
-                self.HDF5FILE[f"/Coordinate_{matrix[:,i]}/{s_param_names[j]}/Frequencies"].attrs["Magnitudes"] = s_param_magnitudes
             
         
         
@@ -652,11 +615,7 @@ class Scanner():
         self._probe_controller.disconnect()
 
 
-    def close_Probe(self) -> None:
-        self._probe_controller.disconnect()
 
-    def close_Motion(self) -> None:
-        self._motion_controller.disconnect()
     @property
     def motion_controller(self) -> MotionController:
         return self._motion_controller

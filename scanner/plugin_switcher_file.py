@@ -1,6 +1,5 @@
 from scanner.scan_file_controller import ScanFileControllerPlugin
-from scanner.plugin_setting import PluginSettingString, PluginSettingInteger, PluginSettingFloat
-from scanner.plugin_setting import PluginSetting
+from scanner.plugin_setting import PluginSettingString
 from tkinter import filedialog as fd
 import os
 

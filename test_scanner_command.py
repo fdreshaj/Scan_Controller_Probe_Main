@@ -1,6 +1,4 @@
 
-from itertools import product
-import time
 
 from scanner.scanner import Scanner
 

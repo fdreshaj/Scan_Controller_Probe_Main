@@ -103,22 +103,6 @@ class ndwindow(QWidget):
         self.visualize_path(self.points_matrix)
         print(f"Base Raster Generated: {len(self.points_matrix)} points.")
 
-    def generate_offset_mesh(self, original_mesh, standoff):
-        """
-        Creates a new mesh surface shifted outward by the standoff distance.
-        This replaces the simple scaling 'enlargement' with a true offset.
-        """
-        # 1. Compute surface normals if they don't exist
-        mesh = original_mesh.compute_normals(cell_normals=False, point_normals=True, inplace=False)
-        
-        # 2. Offset the points along their normals
-        # This is the "Enlargement" you described, but done correctly point-by-point
-        offset_points = mesh.points + (mesh.point_data['Normals'] * standoff)
-        
-        # 3. Create the new mesh
-        offset_mesh = mesh.copy()
-        offset_mesh.points = offset_points
-        return offset_mesh
 
 
     def apply_voxel_4d_transformation(self):

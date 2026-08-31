@@ -1,14 +1,11 @@
 import socket
 import threading
-import os
-import time
 import re
 import math
 from datetime import datetime
 from scanner.probe_controller import ProbePlugin
 from scanner.plugin_setting import PluginSettingString, PluginSettingInteger
 from scanner.motion_controller import MotionControllerPlugin
-import statistics
 
 # ---------------------------------------------------------------------------
 # Matplotlib import — non-blocking interactive backend
@@ -241,7 +238,6 @@ class ScanVisualiser:
             ax.set_title('Polar (ultrasound)', color='#aeaeb2',
                          fontsize=9, pad=8)
 
-            r_raw   = np.array(us_raw)
             r_filt  = np.array(us_filt)
             theta   = np.radians(np.array(angles))
 

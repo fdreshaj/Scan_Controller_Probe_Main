@@ -1,6 +1,5 @@
 
 from abc import ABC, abstractmethod
-from typing import Sequence, Any
 
 from scanner.plugin_setting import PluginSetting
 
