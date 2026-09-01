@@ -22,6 +22,32 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
+# Qt must never try to reach a display. Set before anything imports PySide6.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+# --------------------------------------------------------------------------
+# Qt
+# --------------------------------------------------------------------------
+
+@pytest.fixture(scope="session")
+def qapp():
+    """The one QApplication for the session, or None if PySide6 is absent.
+
+    Anything that constructs a QWidget needs this. Qt *aborts the process* --
+    not raises -- when a widget is built with no QApplication, so a test that
+    touches Qt without requesting this fixture takes the whole run down with
+    it. Several plugins build their GUI in `__init__`, so this is not a
+    theoretical concern: `scanner/Plugins/cyBot_Plugin.py` does exactly that.
+
+    Session-scoped because Qt permits only one QApplication per process.
+    """
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return None
+    return QApplication.instance() or QApplication([])
+
 
 # --------------------------------------------------------------------------
 # Hardware lockout

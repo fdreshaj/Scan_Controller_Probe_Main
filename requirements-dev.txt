@@ -17,5 +17,10 @@ flake8>=7.0         # the dead-code regression gate in test_static_hygiene.py
 # Optional. Installing these widens coverage rather than being required:
 #   pyserial   -> imports the Gcode / TinyG motion plugins
 #   pyvisa     -> imports the VNA plugins
-#   matplotlib -> imports the plotting modules
-#   PySide6    -> imports the Qt GUI modules
+#   matplotlib -> the visualizer's trace panel, and the plotting modules
+#   PySide6    -> the S-parameter visualizer widget tests, and the Qt GUI
+#   scipy      -> gui/plotter.py
+#
+# The Qt tests run headless via QT_QPA_PLATFORM=offscreen, which tests/conftest.py
+# sets for you. On a bare Linux box Qt still needs its system libraries:
+#   apt-get install libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1

@@ -7,23 +7,65 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
-    QPushButton, QLabel, QComboBox, QGraphicsPixmapItem, QSlider
+    QPushButton, QLabel, QComboBox, QGraphicsPixmapItem, QSlider,
+    QDoubleSpinBox, QCheckBox, QSplitter
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QColor, QFont, QImage, QPixmap
 import h5py
 import numpy as np
 
+from scanner import sparam_processing as sp
+
+# The trace panel needs a line plot. matplotlib is already a dependency of the
+# application (gui/plotter.py), but this window is also runnable standalone, so
+# the import is guarded: without it the heatmap still works and the trace panel
+# is simply not offered.
+try:
+    import matplotlib
+    matplotlib.use("QtAgg")
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+    from matplotlib.figure import Figure
+    TRACE_PLOT_AVAILABLE = True
+except Exception as _trace_import_error:  # pragma: no cover - environment dependent
+    print(f"Trace panel disabled (matplotlib unavailable): {_trace_import_error}")
+    TRACE_PLOT_AVAILABLE = False
+
+#: Domain the slider and heatmap operate in.
+DOMAIN_FREQUENCY = "Frequency"
+DOMAIN_TIME = "Time (FFT)"
+
+#: Zero-padding for the whole-scan transform. Every measurement point is
+#: transformed at once, so padding multiplies the memory held for the scan --
+#: a 10k-point x 1001-frequency scan is already 160 MB as complex128. Padding
+#: only interpolates the axis, it adds no resolution, and the heatmap slider
+#: steps bin by bin where interpolation buys nothing. The single-point trace
+#: plot pads properly because there it does help read a peak off the curve.
+HEATMAP_PAD_FACTOR = 1
+TRACE_PAD_FACTOR = 8
+
 class ZoomableGraphicsView(QGraphicsView):
-    """Custom QGraphicsView with mouse wheel zoom"""
-    
+    """Custom QGraphicsView with mouse wheel zoom and click-to-select."""
+
+    #: Emitted with the scene position of a left click, so the window can work
+    #: out which measurement point the operator picked for the trace panel.
+    point_clicked = Signal(float, float)
+
     def __init__(self, scene):
         super().__init__(scene)
         self.zoom_factor = 1.15
         self.min_zoom = 0.1
         self.max_zoom = 10.0
         self.current_zoom = 1.0
-    
+
+    def mousePressEvent(self, event):
+        """Report left clicks, then hand the event on so panning still works."""
+        if event.button() == Qt.LeftButton:
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self.point_clicked.emit(scene_pos.x(), scene_pos.y())
+        super().mousePressEvent(event)
+
+
     def wheelEvent(self, event):
         """Handle mouse wheel for zooming"""
         # Get the wheel delta (positive = zoom in, negative = zoom out)
@@ -61,16 +103,36 @@ class VisualizerWindow(QWidget):
         self.all_data = {}  # Dictionary to store data for each S-parameter
         self.all_x = []
         self.all_y = []
-        self.frequencies = None
-        self.freq_index = 0
+        self.frequencies = None      # as stored in the file (GHz for scan files)
+        self.freqs_hz = None         # the same axis normalised to Hz
+        self.freq_index = 0          # index into the current domain's axis
         self.total_points_expected = None
         self.available_sparams = []
         self.current_sparam = None
-        
+
+        #: Pixels per grid cell in the rendered heatmap. The click handler
+        #: divides by this to get back to a grid index, so the renderer and the
+        #: hit test must agree on one value.
+        self.heatmap_scale_factor = 4
+
         # Grid parameters
         self.grid_x = None
         self.grid_y = None
         self.is_uniform = False
+        self.unique_x = None
+        self.unique_y = None
+        self.grid_point_index = None  # grid cell -> index into all_data rows
+        self._grid_ix = None          # cached cell index per point (x axis)
+        self._grid_iy = None          # cached cell index per point (y axis)
+
+        # FFT / filter / phase pipeline
+        self._processed = None        # complex data after filter + domain transform
+        self._axis_values = None      # Hz in frequency domain, seconds in time domain
+        self._display_matrix = None   # cache for sweep-dependent modes (unwrapped phase)
+        self._display_matrix_mode = None
+        self.selected_point = None    # row index of the pixel shown in the trace panel
+        self._transform_error = False # a transform message is on the status bar
+        self._data_status = "Waiting for data..."
         
         # Animation parameters
         self.is_playing = False
@@ -122,8 +184,8 @@ class VisualizerWindow(QWidget):
         control_layout.addWidget(datatype_label)
         
         self.datatype_combo = QComboBox()
-        self.datatype_combo.addItems(["Magnitude", "Phase", "Real", "Imaginary"])
-        self.datatype_combo.currentTextChanged.connect(self.redraw_data)
+        self.datatype_combo.addItems(list(sp.DISPLAY_MODES))
+        self.datatype_combo.currentTextChanged.connect(self.on_display_mode_changed)
         control_layout.addWidget(self.datatype_combo)
         
         # Colormap selector
@@ -136,7 +198,83 @@ class VisualizerWindow(QWidget):
         control_layout.addWidget(self.colormap_combo)
         
         layout.addLayout(control_layout)
-        
+
+        # ------------------------------------------------------------------
+        # Second control row: FFT domain and delay filter
+        # ------------------------------------------------------------------
+        transform_layout = QHBoxLayout()
+
+        transform_layout.addWidget(QLabel("Domain:"))
+        self.domain_combo = QComboBox()
+        self.domain_combo.addItems([DOMAIN_FREQUENCY, DOMAIN_TIME])
+        self.domain_combo.setToolTip(
+            "Frequency: the measured sweep.\n"
+            "Time (FFT): the sweep inverse-transformed to a delay/range profile, "
+            "so the slider steps through range instead of frequency."
+        )
+        self.domain_combo.currentTextChanged.connect(self.on_domain_changed)
+        transform_layout.addWidget(self.domain_combo)
+
+        transform_layout.addWidget(QLabel("Window:"))
+        self.window_combo = QComboBox()
+        self.window_combo.addItems(list(sp.WINDOW_NAMES))
+        self.window_combo.setToolTip(
+            "Applied across the sweep before the FFT. Suppresses the sidelobes "
+            "that would otherwise smear a strong reflection along the range "
+            "axis. 'None' gives the sharpest peak and the worst sidelobes."
+        )
+        self.window_combo.currentTextChanged.connect(self.on_transform_changed)
+        transform_layout.addWidget(self.window_combo)
+
+        transform_layout.addSpacing(16)
+
+        transform_layout.addWidget(QLabel("Filter:"))
+        self.filter_combo = QComboBox()
+        self.filter_combo.addItems(list(sp.FILTER_MODES))
+        self.filter_combo.setToolTip(
+            "Filters the sweep by delay content.\n"
+            "Low Pass keeps short delays: removes multipath and late echoes.\n"
+            "High Pass keeps long delays: removes antenna mismatch and the "
+            "direct coupling that dominates a near-field scan."
+        )
+        self.filter_combo.currentTextChanged.connect(self.on_transform_changed)
+        transform_layout.addWidget(self.filter_combo)
+
+        transform_layout.addWidget(QLabel("Cutoff:"))
+        self.cutoff_spin = QDoubleSpinBox()
+        self.cutoff_spin.setDecimals(3)
+        self.cutoff_spin.setSuffix(" ns")
+        self.cutoff_spin.setMinimum(0.0)
+        self.cutoff_spin.setMaximum(1.0e6)
+        self.cutoff_spin.setSingleStep(0.1)
+        self.cutoff_spin.setValue(1.0)
+        self.cutoff_spin.setEnabled(False)
+        self.cutoff_spin.setToolTip("Delay at which the filter rolls off.")
+        self.cutoff_spin.valueChanged.connect(self.on_transform_changed)
+        transform_layout.addWidget(self.cutoff_spin)
+
+        self.cutoff_range_label = QLabel("")
+        self.cutoff_range_label.setToolTip(
+            "The cutoff delay expressed as a two-way distance in free space."
+        )
+        transform_layout.addWidget(self.cutoff_range_label)
+
+        transform_layout.addStretch()
+
+        self.trace_checkbox = QCheckBox("Trace panel")
+        self.trace_checkbox.setChecked(False)
+        self.trace_checkbox.setEnabled(TRACE_PLOT_AVAILABLE)
+        if not TRACE_PLOT_AVAILABLE:
+            self.trace_checkbox.setToolTip("matplotlib is not installed")
+        else:
+            self.trace_checkbox.setToolTip(
+                "Show the full response of one pixel. Click the heatmap to pick one."
+            )
+        self.trace_checkbox.toggled.connect(self.on_trace_toggled)
+        transform_layout.addWidget(self.trace_checkbox)
+
+        layout.addLayout(transform_layout)
+
         # Graphics view
         self.scene = QGraphicsScene()
         self.view = ZoomableGraphicsView(self.scene)
@@ -145,15 +283,32 @@ class VisualizerWindow(QWidget):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.view.setDragMode(QGraphicsView.ScrollHandDrag)  # Enable drag to pan
         self.view.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)  # Zoom at mouse cursor
-        layout.addWidget(self.view)
-        
-        
+        self.view.point_clicked.connect(self.on_heatmap_clicked)
+
+        # Heatmap on top, optional trace plot underneath.
+        self.display_splitter = QSplitter(Qt.Vertical)
+        self.display_splitter.addWidget(self.view)
+
+        self.trace_canvas = None
+        if TRACE_PLOT_AVAILABLE:
+            self.trace_figure = Figure(figsize=(5, 2.2), tight_layout=True)
+            self.trace_canvas = FigureCanvas(self.trace_figure)
+            self.trace_axes = self.trace_figure.add_subplot(111)
+            self.trace_canvas.setMinimumHeight(160)
+            self.trace_canvas.setVisible(False)
+            self.display_splitter.addWidget(self.trace_canvas)
+
+        self.display_splitter.setStretchFactor(0, 3)
+        layout.addWidget(self.display_splitter)
+
+
         # Frequency slider section
         freq_slider_layout = QVBoxLayout()
         
         # Frequency label
         freq_label_layout = QHBoxLayout()
-        freq_label_layout.addWidget(QLabel("Frequency:"))
+        self.axis_name_label = QLabel("Frequency:")
+        freq_label_layout.addWidget(self.axis_name_label)
         self.freq_value_label = QLabel("--")
         self.freq_value_label.setFont(QFont("Arial", 10, QFont.Bold))
         freq_label_layout.addWidget(self.freq_value_label)
@@ -212,18 +367,16 @@ class VisualizerWindow(QWidget):
             self.play_button.setText("⏸ Pause")
     
     def play_next_frame(self):
-        """Advance to next frequency frame"""
-        if self.frequencies is None:
+        """Advance one bin along whichever axis the slider is showing."""
+        axis = self.current_axis_values()
+        if axis is None or len(axis) == 0:
             return
-        
-        # Advance to next frequency
+
         next_index = self.freq_index + 1
-        
-        # Loop back to start if at end
-        if next_index >= len(self.frequencies):
-            next_index = 0
-        
-        # Update slider (this will trigger redraw)
+        if next_index >= len(axis):
+            next_index = 0  # loop
+
+        # Updating the slider triggers the redraw.
         self.freq_slider.setValue(next_index)
     
     def initial_setup(self):
@@ -301,18 +454,181 @@ class VisualizerWindow(QWidget):
             # Reload data for this S-parameter
             self.last_point_read = 0
             self.all_data = {}
+            self._invalidate_processing()
             self.update_visualization()
     
+    # ----------------------------------------------------------------------
+    # FFT / filter pipeline
+    # ----------------------------------------------------------------------
+
+    def _invalidate_processing(self):
+        """Drop the cached transform. Call after anything that changes it."""
+        self._processed = None
+        self._axis_values = None
+        self._display_matrix = None
+        self._display_matrix_mode = None
+
+    def _ensure_processed(self):
+        """Apply the filter and domain transform, caching the result.
+
+        Both are whole-scan operations, so recomputing them on every slider
+        step would make the frequency animation crawl. The cache is dropped by
+        `_invalidate_processing` whenever new data arrives or a control that
+        feeds the pipeline changes.
+
+        Returns True when `self._processed` and `self._axis_values` are usable.
+        """
+        if self._processed is not None:
+            return True
+
+        raw = self.all_data.get(self.current_sparam)
+        if raw is None or len(raw) == 0 or self.freqs_hz is None:
+            return False
+        if np.ndim(raw) != 2 or raw.shape[1] != len(self.freqs_hz):
+            return False
+
+        data = np.asarray(raw, dtype=complex)
+
+        try:
+            filter_mode = self.filter_combo.currentText()
+            if filter_mode != sp.FILTER_OFF:
+                cutoff_s = self.cutoff_spin.value() * 1e-9
+                data = sp.apply_filter(data, self.freqs_hz, filter_mode, cutoff_s)
+
+            if self.domain_combo.currentText() == DOMAIN_TIME:
+                times, data = sp.to_time_domain(
+                    data,
+                    self.freqs_hz,
+                    window=self.window_combo.currentText(),
+                    pad_factor=HEATMAP_PAD_FACTOR,
+                )
+                self._axis_values = times
+            else:
+                self._axis_values = np.asarray(self.freqs_hz, dtype=float)
+        except ValueError as exc:
+            # A non-uniform sweep is the usual cause. Say so rather than
+            # showing a plausible but meaningless transform.
+            self._transform_error = True
+            self.status_label.setText(f"Transform unavailable: {exc}")
+            return False
+
+        if self._transform_error:
+            # The operator has changed something that fixed it; put the data
+            # status back rather than leaving a stale error on screen.
+            self._transform_error = False
+            self.status_label.setText(self._data_status)
+
+        self._processed = data
+        return True
+
+    def _display_slice(self):
+        """The real-valued data for the current slider position.
+
+        Most display modes are per-sample, so they are applied to the single
+        column the slider selects. Unwrapped phase is not: it needs the whole
+        sweep, so for that mode the transform runs across the full matrix once
+        and is cached.
+        """
+        if not self._ensure_processed():
+            return None
+
+        index = min(self.freq_index, self._processed.shape[1] - 1)
+        mode = self.datatype_combo.currentText()
+
+        if mode in sp.SWEEP_DEPENDENT_MODES:
+            if self._display_matrix is None or self._display_matrix_mode != mode:
+                self._display_matrix = sp.to_display(self._processed, mode, axis=-1)
+                self._display_matrix_mode = mode
+            return self._display_matrix[:, index]
+
+        return sp.to_display(self._processed[:, index], mode)
+
+    def on_display_mode_changed(self, _mode=None):
+        self._display_matrix = None
+        self._display_matrix_mode = None
+        self.redraw_data()
+        self.update_trace_plot()
+
+    def on_domain_changed(self, _domain=None):
+        """Switch the slider and heatmap between frequency and range."""
+        self._invalidate_processing()
+        self.freq_index = 0
+        self.populate_axis_slider()
+        self.redraw_data()
+        self.update_trace_plot()
+
+    def on_transform_changed(self, _value=None):
+        """A filter or window change: re-run the pipeline, keep the position."""
+        self.cutoff_spin.setEnabled(
+            self.filter_combo.currentText() != sp.FILTER_OFF
+        )
+        self.update_cutoff_range_label()
+        self._invalidate_processing()
+        self.populate_axis_slider(keep_position=True)
+        self.redraw_data()
+        self.update_trace_plot()
+
+    def update_cutoff_range_label(self):
+        """Show the cutoff delay as a distance, which is what an operator
+        actually has in mind when gating out a reflection."""
+        if self.filter_combo.currentText() == sp.FILTER_OFF:
+            self.cutoff_range_label.setText("")
+            return
+        cutoff_s = self.cutoff_spin.value() * 1e-9
+        metres = sp.time_to_range(cutoff_s)
+        self.cutoff_range_label.setText(f"(≈ {metres * 100:.1f} cm two-way)")
+
+    def configure_filter_defaults(self):
+        """Pick a starting cutoff and a sane range once the sweep is known."""
+        if self.freqs_hz is None or len(self.freqs_hz) < 2:
+            return
+        try:
+            # Half the unambiguous span: past that the delay bins fold back on
+            # themselves and a larger cutoff changes nothing.
+            span_ns = sp.max_filter_delay(self.freqs_hz) * 1e9
+            default_ns = sp.suggested_cutoff(self.freqs_hz) * 1e9
+        except ValueError:
+            return
+
+        self.cutoff_spin.blockSignals(True)
+        self.cutoff_spin.setMaximum(span_ns)
+        self.cutoff_spin.setSingleStep(max(span_ns / 200.0, 1e-3))
+        self.cutoff_spin.setValue(default_ns)
+        self.cutoff_spin.blockSignals(False)
+        self.update_cutoff_range_label()
+
+    def current_axis_values(self):
+        """The axis the slider indexes: Hz, or seconds in the FFT view."""
+        if self._axis_values is not None:
+            return self._axis_values
+        if self.domain_combo.currentText() == DOMAIN_FREQUENCY:
+            return self.freqs_hz
+        return None
+
+    def populate_axis_slider(self, keep_position=False):
+        """Size the slider to the current domain's axis."""
+        if not self._ensure_processed():
+            # Fall back to the raw frequency axis so the slider is usable as
+            # soon as frequencies are known, before any data has arrived.
+            if self.freqs_hz is None:
+                return
+            num_bins = len(self.freqs_hz)
+        else:
+            num_bins = self._processed.shape[1]
+
+        previous = self.freq_index if keep_position else 0
+        self.freq_slider.blockSignals(True)
+        self.freq_slider.setMaximum(max(num_bins - 1, 0))
+        self.freq_index = min(previous, num_bins - 1)
+        self.freq_slider.setValue(self.freq_index)
+        self.freq_slider.blockSignals(False)
+
+        self.update_axis_label()
+        self.play_button.setEnabled(num_bins > 1)
+
+    # Kept under the old name so any external caller keeps working.
     def populate_frequency_slider(self):
-        """Setup frequency slider with frequency data"""
-        if self.frequencies is not None:
-            num_freqs = len(self.frequencies)
-            self.freq_slider.setMaximum(num_freqs - 1)
-            self.freq_slider.setValue(0)
-            self.update_frequency_label()
-            
-            # Enable play button once frequencies are loaded
-            self.play_button.setEnabled(True)
+        self.populate_axis_slider()
 
     def import_new_file(self):
         """Import a new HDF5 file"""
@@ -338,12 +654,20 @@ class VisualizerWindow(QWidget):
             self.all_x = []
             self.all_y = []
             self.frequencies = None
+            self.freqs_hz = None
             self.freq_index = 0
             self.total_points_expected = None
             self.available_sparams = []
             self.current_sparam = None
             self.grid_x = None
             self.grid_y = None
+            self.unique_x = None
+            self.unique_y = None
+            self.grid_point_index = None
+            self._grid_ix = None
+            self._grid_iy = None
+            self.selected_point = None
+            self._invalidate_processing()
             self._view_fitted = False  # Reset view fit flag
             
             # Clear scene
@@ -361,19 +685,39 @@ class VisualizerWindow(QWidget):
             self.update_visualization()
 
     def on_slider_changed(self, value):
-        """Handle frequency slider change"""
+        """Handle slider change (frequency bin, or range bin in the FFT view)"""
         self.freq_index = value
-        self.update_frequency_label()
+        self.update_axis_label()
         self.redraw_data()
-    
-    def update_frequency_label(self):
-        """Update the frequency label based on slider position"""
-        if self.frequencies is not None and self.freq_index < len(self.frequencies):
-            freq_hz = self.frequencies[self.freq_index]
-            freq_ghz = freq_hz / 1e9
-            self.freq_value_label.setText(f"{freq_ghz:.4f} GHz")
-        else:
+        self.update_trace_plot()
+
+    def update_axis_label(self):
+        """Label the slider position in the units of the current domain.
+
+        In the FFT view the delay is also shown as a two-way distance, which is
+        what the operator is actually looking for when range-gating a target.
+        """
+        axis = self.current_axis_values()
+        if axis is None or len(axis) == 0 or self.freq_index >= len(axis):
             self.freq_value_label.setText("--")
+            return
+
+        if self.domain_combo.currentText() == DOMAIN_TIME:
+            delay_s = float(axis[self.freq_index])
+            metres = sp.time_to_range(delay_s)
+            self.axis_name_label.setText("Range:")
+            self.freq_value_label.setText(
+                f"{delay_s * 1e9:.3f} ns   ({metres * 100:.2f} cm two-way)"
+            )
+        else:
+            # `freqs_hz` is normalised on load, so this is Hz regardless of
+            # whether the file stored GHz.
+            self.axis_name_label.setText("Frequency:")
+            self.freq_value_label.setText(f"{float(axis[self.freq_index]) / 1e9:.4f} GHz")
+
+    # Kept under the old name so any external caller keeps working.
+    def update_frequency_label(self):
+        self.update_axis_label()
     
     def detect_grid_structure(self):
         """Detect grid dimensions from coordinate data"""
@@ -452,7 +796,11 @@ class VisualizerWindow(QWidget):
                 if self.frequencies is None:
                     if '/Frequencies/Range' in hf:
                         self.frequencies = hf['/Frequencies/Range'][:]
-                        self.populate_frequency_slider()
+                        # The scan writer stores GHz; a plugin may hand over Hz.
+                        # Every transform here needs Hz, so settle it once.
+                        self.freqs_hz = sp.normalize_frequencies_to_hz(self.frequencies)
+                        self.configure_filter_defaults()
+                        self.populate_axis_slider()
                 
                 # Check if data exists for current S-parameter
                 real_path = f'/Data/{self.current_sparam}_real'
@@ -492,12 +840,21 @@ class VisualizerWindow(QWidget):
                     self.all_y = hf['/Coords/y_data'][:current_num_points]
                     
                     self.last_point_read = current_num_points
-                    
+
+                    # The pipeline cache is keyed to the data it was built
+                    # from, so new rows must drop it. The grid mapping is keyed
+                    # to the coordinates, which have also just grown.
+                    self._invalidate_processing()
+                    self._grid_ix = None
+                    self._grid_iy = None
+
                     # Detect grid structure
                     self.detect_grid_structure()
-                    
+
                     # Update visualization
+                    self.populate_axis_slider(keep_position=True)
                     self.redraw_data()
+                    self.update_trace_plot()
                     
                     # Update status
                     total_size = hf[real_path].shape[0]
@@ -505,7 +862,9 @@ class VisualizerWindow(QWidget):
                     status_text = f"Live: {current_num_points}/{total_size} points ({progress:.1f}%)"
                     if current_num_points >= total_size:
                         status_text = f"Complete: {current_num_points} points"
-                    self.status_label.setText(status_text)
+                    self._data_status = status_text
+                    if not self._transform_error:
+                        self.status_label.setText(status_text)
                     
                     self.points_label.setText(f"Points: {current_num_points}")
                     
@@ -530,21 +889,14 @@ class VisualizerWindow(QWidget):
             view_transform = self.view.transform()
             
             self.scene.clear()
-            
-            # Get data at selected frequency
-            freq_data = data[:, self.freq_index]
-            
-            # Get data type
-            datatype = self.datatype_combo.currentText()
-            if datatype == "Magnitude":
-                display_data = np.abs(freq_data)
-            elif datatype == "Phase":
-                display_data = np.angle(freq_data)
-            elif datatype == "Real":
-                display_data = np.real(freq_data)
-            else:  # Imaginary
-                display_data = np.imag(freq_data)
-            
+
+            # Run the filter / FFT pipeline and take the selected slice. In the
+            # frequency domain with no filter this is the same value the old
+            # code read straight out of `data`.
+            display_data = self._display_slice()
+            if display_data is None:
+                return
+
             # Map points to grid
             grid_data = self.map_to_grid(display_data)
             
@@ -572,55 +924,318 @@ class VisualizerWindow(QWidget):
                 # Restore the previous view transform
                 self.view.setTransform(view_transform)
     
+    @staticmethod
+    def _nearest_indices(sorted_values, queries):
+        """Index of the closest entry of `sorted_values` for each query.
+
+        Vectorised equivalent of ``argmin(abs(sorted_values - q))`` per query.
+        `searchsorted` finds the insertion point in O(log n); the neighbour
+        comparison then picks whichever side is actually nearer, so the result
+        matches the original argmin even when coordinates carry float drift.
+        """
+        sorted_values = np.asarray(sorted_values, dtype=float)
+        queries = np.asarray(queries, dtype=float)
+        if sorted_values.size == 1:
+            return np.zeros(queries.shape, dtype=int)
+
+        right = np.searchsorted(sorted_values, queries)
+        right = np.clip(right, 1, sorted_values.size - 1)
+        left = right - 1
+        pick_right = np.abs(queries - sorted_values[left]) > np.abs(
+            sorted_values[right] - queries
+        )
+        return np.where(pick_right, right, left)
+
+    def _ensure_grid_indices(self):
+        """Work out which grid cell each measurement point falls in.
+
+        Cached: the mapping depends only on the coordinates, which change when
+        new points arrive, not when the frequency slider moves or the display
+        mode changes. Recomputing it per redraw was the dominant cost of
+        scrubbing the range slider on a large scan.
+        """
+        if self._grid_ix is not None and len(self._grid_ix) == len(self.all_x):
+            return True
+        if len(self.all_x) == 0:
+            return False
+
+        self.unique_x = np.sort(np.unique(self.all_x))
+        self.unique_y = np.sort(np.unique(self.all_y))
+
+        self._grid_ix = self._nearest_indices(self.unique_x, self.all_x)
+        self._grid_iy = self._nearest_indices(self.unique_y, self.all_y)
+
+        index_grid = np.full((len(self.unique_x), len(self.unique_y)), -1, dtype=int)
+        index_grid[self._grid_ix, self._grid_iy] = np.arange(len(self.all_x))
+        self.grid_point_index = index_grid
+        return True
+
     def map_to_grid(self, data):
-        """Map scattered data points to regular grid"""
-        # Find unique sorted coordinates
-        unique_x = np.sort(np.unique(self.all_x))
-        unique_y = np.sort(np.unique(self.all_y))
-        
-        # Create grid
-        grid = np.full((len(unique_x), len(unique_y)), np.nan)
-        
-        # Map each point to grid
-        for i in range(len(self.all_x)):
-            ix = np.argmin(np.abs(unique_x - self.all_x[i]))
-            iy = np.argmin(np.abs(unique_y - self.all_y[i]))
-            grid[ix, iy] = data[i]
-        
+        """Map scattered data points to a regular grid.
+
+        The cell each point belongs to is cached by `_ensure_grid_indices`, so
+        this is a single scatter-assign per redraw.
+        """
+        if not self._ensure_grid_indices():
+            return None
+
+        grid = np.full((len(self.unique_x), len(self.unique_y)), np.nan)
+        grid[self._grid_ix, self._grid_iy] = np.asarray(data)[: len(self._grid_ix)]
         return grid
+
+    # ----------------------------------------------------------------------
+    # Trace panel
+    # ----------------------------------------------------------------------
+
+    def on_trace_toggled(self, checked):
+        if self.trace_canvas is None:
+            return
+        self.trace_canvas.setVisible(checked)
+        if checked:
+            self.update_trace_plot()
+
+    def on_heatmap_clicked(self, scene_x, scene_y):
+        """Turn a click on the heatmap into the measurement point under it.
+
+        `create_heatmap_image` draws grid cell (ix, iy) as a `scale_factor`
+        block at image column `iy`, row `ix` -- the image axes are transposed
+        relative to the grid, so the mapping back is y->row, x->column.
+        """
+        if self.grid_point_index is None:
+            return
+
+        scale = self.heatmap_scale_factor
+        row = int(scene_y // scale)   # index into unique_x
+        col = int(scene_x // scale)   # index into unique_y
+
+        rows, cols = self.grid_point_index.shape
+        if not (0 <= row < rows and 0 <= col < cols):
+            return
+
+        point = int(self.grid_point_index[row, col])
+        if point < 0:
+            return  # an empty cell: nothing measured here yet
+
+        self.selected_point = point
+        if not self.trace_checkbox.isChecked() and TRACE_PLOT_AVAILABLE:
+            self.trace_checkbox.setChecked(True)  # triggers the redraw
+        else:
+            self.update_trace_plot()
+
+    def update_trace_plot(self):
+        """Draw the full response of the selected pixel.
+
+        A heatmap can only ever show one frequency or one range bin at a time.
+        The FFT and phase views are about how a point behaves *across* the
+        sweep, so this panel is where they are actually readable: the range
+        profile of a pixel, or its phase ramp against frequency.
+
+        The unfiltered response is drawn behind the filtered one whenever a
+        filter is active, so the effect of the cutoff is visible rather than
+        inferred.
+        """
+        if self.trace_canvas is None or not self.trace_checkbox.isChecked():
+            return
+
+        self.trace_axes.clear()
+
+        raw = self.all_data.get(self.current_sparam)
+        if raw is None or self.selected_point is None or self.freqs_hz is None:
+            self.trace_axes.text(
+                0.5, 0.5, "Click a pixel to plot its response",
+                ha="center", va="center", transform=self.trace_axes.transAxes,
+                color="gray",
+            )
+            self.trace_canvas.draw_idle()
+            return
+
+        if self.selected_point >= len(raw):
+            return
+
+        mode = self.datatype_combo.currentText()
+        filter_mode = self.filter_combo.currentText()
+        in_time_domain = self.domain_combo.currentText() == DOMAIN_TIME
+        trace_raw = np.asarray(raw[self.selected_point], dtype=complex)
+
+        try:
+            curves = []
+            if filter_mode != sp.FILTER_OFF:
+                curves.append(("Unfiltered", trace_raw, 0.35))
+                cutoff_s = self.cutoff_spin.value() * 1e-9
+                filtered = sp.apply_filter(
+                    trace_raw, self.freqs_hz, filter_mode, cutoff_s
+                )
+                curves.append((filter_mode, filtered, 1.0))
+            else:
+                curves.append(("S-parameter", trace_raw, 1.0))
+
+            for label, values, alpha in curves:
+                if in_time_domain:
+                    axis, values = sp.to_time_domain(
+                        values,
+                        self.freqs_hz,
+                        window=self.window_combo.currentText(),
+                        pad_factor=TRACE_PAD_FACTOR,
+                    )
+                    axis = axis * 1e9  # ns
+                else:
+                    axis = np.asarray(self.freqs_hz, dtype=float) / 1e9  # GHz
+
+                self.trace_axes.plot(
+                    axis, sp.to_display(values, mode), label=label, alpha=alpha,
+                    linewidth=1.2,
+                )
+        except ValueError as exc:
+            self.trace_axes.text(
+                0.5, 0.5, f"Cannot plot: {exc}",
+                ha="center", va="center", transform=self.trace_axes.transAxes,
+                color="firebrick", wrap=True,
+            )
+            self.trace_canvas.draw_idle()
+            return
+
+        # Mark where the heatmap slider currently sits.
+        axis_values = self.current_axis_values()
+        if axis_values is not None and self.freq_index < len(axis_values):
+            marker = float(axis_values[self.freq_index])
+            marker = marker * 1e9 if in_time_domain else marker / 1e9
+            self.trace_axes.axvline(marker, color="k", linestyle=":", linewidth=1.0)
+
+        # Show where the filter cuts, so the cutoff is not a blind number.
+        if filter_mode != sp.FILTER_OFF and in_time_domain:
+            self.trace_axes.axvline(
+                self.cutoff_spin.value(), color="firebrick",
+                linestyle="--", linewidth=1.0,
+            )
+
+        x_label = "Delay (ns)" if in_time_domain else "Frequency (GHz)"
+        self.trace_axes.set_xlabel(x_label, fontsize=8)
+        # Most mode names already carry their unit ("Phase (deg)"); appending
+        # it again would just make the label long enough to be clipped.
+        units = sp.display_units(mode)
+        y_label = mode if "(" in mode else f"{mode} [{units}]"
+        self.trace_axes.set_ylabel(y_label, fontsize=8)
+        self.trace_axes.tick_params(labelsize=7)
+        self.trace_axes.grid(True, alpha=0.3)
+        if len(curves) > 1:
+            self.trace_axes.legend(fontsize=7)
+
+        x_pos, y_pos = self.point_coordinates(self.selected_point)
+        self.trace_axes.set_title(
+            f"Point {self.selected_point}  (x={x_pos:.2f}, y={y_pos:.2f} mm)",
+            fontsize=8,
+        )
+        self.trace_canvas.draw_idle()
+
+    def point_coordinates(self, index):
+        """The scan coordinates of a measurement point, for labelling."""
+        try:
+            return float(self.all_x[index]), float(self.all_y[index])
+        except (IndexError, TypeError, ValueError):
+            return float("nan"), float("nan")
     
     def create_heatmap_image(self, grid_data, data_min, data_max):
-        """Create QImage from grid data"""
+        """Create QImage from grid data.
+
+        Vectorised. The original built the image with a per-pixel
+        ``setPixelColor`` loop, which cost ~60 ms for a 60x60 grid -- fine when
+        the slider only stepped through frequency occasionally, but the FFT
+        view makes scrubbing the range axis the main way you read the data, and
+        the play button animates it. `_colormap_rgb` produces exactly the same
+        colours as `get_color`; `test_sparam_visualizer.py` asserts that.
+        """
         height, width = grid_data.shape
-        
+
         # Normalize data
         if data_max > data_min:
             normalized = (grid_data - data_min) / (data_max - data_min)
         else:
             normalized = np.zeros_like(grid_data)
-        
-        # Create image with larger pixels for visibility
-        scale_factor = 4
-        image = QImage(width * scale_factor, height * scale_factor, QImage.Format_RGB32)
-        
-        # Fill image
-        for ix in range(height):
-            for iy in range(width):
-                if np.isnan(normalized[ix, iy]):
-                    color = QColor(128, 128, 128)  # Gray for missing data
-                else:
-                    color = self.get_color(normalized[ix, iy])
-                
-                # Fill scaled block
-                for px in range(scale_factor):
-                    for py in range(scale_factor):
-                        image.setPixelColor(
-                            iy * scale_factor + py,
-                            ix * scale_factor + px,
-                            color
-                        )
-        
-        return image
+
+        rgb = self._colormap_rgb(normalized)
+
+        # Enlarge each grid cell into a solid block.
+        scale_factor = self.heatmap_scale_factor
+        rgb = np.repeat(np.repeat(rgb, scale_factor, axis=0), scale_factor, axis=1)
+        rgb = np.ascontiguousarray(rgb)
+
+        image = QImage(
+            rgb.data,
+            width * scale_factor,
+            height * scale_factor,
+            rgb.strides[0],
+            QImage.Format_RGB888,
+        )
+        # QImage wraps the buffer without owning it, and `rgb` is a local that
+        # is about to go out of scope. copy() detaches it onto Qt's own memory.
+        return image.copy()
+
+    def _colormap_rgb(self, normalized):
+        """Map normalised values in [0, 1] to an (h, w, 3) uint8 RGB array.
+
+        Mirrors `get_color` exactly, including its int() truncation, so the
+        vectorised renderer is pixel-identical to the original loop. NaN cells
+        (grid positions not yet measured) become mid grey.
+        """
+        colormap = self.colormap_combo.currentText()
+
+        values = np.asarray(normalized, dtype=float)
+        missing = np.isnan(values)
+        v = np.where(missing, 0.0, values)
+
+        # int() truncates toward zero, which for these non-negative
+        # expressions is what astype(np.int32) does.
+        def trunc(a):
+            return np.clip(a, 0, 255).astype(np.int32)
+
+        if colormap == "Jet":
+            r = np.zeros_like(v, dtype=np.int32)
+            g = np.zeros_like(v, dtype=np.int32)
+            b = np.zeros_like(v, dtype=np.int32)
+
+            m = v < 0.25
+            r[m], g[m], b[m] = 0, trunc(255 * v[m] / 0.25), 255
+
+            m = (v >= 0.25) & (v < 0.5)
+            r[m], g[m], b[m] = 0, 255, trunc(255 * (0.5 - v[m]) / 0.25)
+
+            m = (v >= 0.5) & (v < 0.75)
+            r[m], g[m], b[m] = trunc(255 * (v[m] - 0.5) / 0.25), 255, 0
+
+            m = v >= 0.75
+            r[m], g[m], b[m] = 255, trunc(255 * (1 - v[m]) / 0.25), 0
+
+        elif colormap == "Viridis":
+            r = trunc(255 * (0.267 + 0.005 * v))
+            g = trunc(255 * (0.005 + 0.570 * v))
+            b = trunc(255 * (0.329 + 0.528 * v))
+
+        elif colormap == "Hot":
+            r = np.zeros_like(v, dtype=np.int32)
+            g = np.zeros_like(v, dtype=np.int32)
+            b = np.zeros_like(v, dtype=np.int32)
+
+            m = v < 0.33
+            r[m], g[m], b[m] = trunc(255 * v[m] / 0.33), 0, 0
+
+            m = (v >= 0.33) & (v < 0.67)
+            r[m], g[m], b[m] = 255, trunc(255 * (v[m] - 0.33) / 0.34), 0
+
+            m = v >= 0.67
+            r[m], g[m], b[m] = 255, 255, trunc(255 * (v[m] - 0.67) / 0.33)
+
+        elif colormap == "Cool":
+            r = trunc(255 * v)
+            g = trunc(255 * (1 - v))
+            b = np.full_like(r, 255)
+
+        else:  # Grayscale
+            gray = trunc(255 * v)
+            r = g = b = gray
+
+        rgb = np.stack([r, g, b], axis=-1).astype(np.uint8)
+        rgb[missing] = 128  # gray for missing data
+        return rgb
     
     def get_color(self, value):
         """Get color for normalized value (0-1) based on selected colormap"""

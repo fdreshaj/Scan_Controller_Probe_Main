@@ -182,7 +182,7 @@ class TestEveryPluginLoads:
 
 
 @pytest.mark.parametrize("path", [_param(p, KNOWN_NON_CONFORMANT) for p in plugin_files()])
-def test_every_plugin_class_can_be_instantiated(path):
+def test_every_plugin_class_can_be_instantiated(path, qapp):
     """The check that matters: no leftover abstract methods.
 
     This is exactly what the operator hits when they pick the plugin from the
@@ -206,12 +206,16 @@ def test_every_plugin_class_can_be_instantiated(path):
 @pytest.mark.parametrize(
     "path", [_param(p, KNOWN_HARDWARE_IN_CONSTRUCTOR) for p in plugin_files()]
 )
-def test_construction_does_not_touch_hardware(path):
+def test_construction_does_not_touch_hardware(path, qapp):
     """Building a plugin must be inert; connecting is the explicit step.
 
     The GUI constructs a plugin to read its settings list before the operator
     has pressed Connect, so a constructor that opens a port grabs the device --
     and the `no_hardware` fixture turns that into a loud failure here.
+
+    Takes `qapp` because several plugins build their GUI in `__init__`, and Qt
+    aborts the process outright if a widget is constructed with no
+    QApplication. The real application always has one.
     """
     module = load_module(path)
     classes = [
@@ -254,34 +258,3 @@ class TestReferenceImplementations:
         from scanner.gcode_simulator import GcodeSimulator
 
         GcodeSimulator()
-
-    def test_no_motion_driver_is_instantiable_today(self):
-        """A blunt summary of the state of play, so nobody has to count xfails.
-
-        Every motion driver that can be imported without vendor hardware
-        libraries is currently non-conformant. If this ever stops being true,
-        the assertion below fails and the test should be deleted in favour of
-        the per-plugin coverage above.
-        """
-        instantiable = []
-        for path in plugin_files():
-            spec = importlib.util.spec_from_file_location(f"survey_{path.stem}", path)
-            module = importlib.util.module_from_spec(spec)
-            try:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    spec.loader.exec_module(module)
-            except BaseException:
-                continue
-            for cls in plugin_classes(module):
-                if not issubclass(cls, MotionControllerPlugin):
-                    continue
-                if not (getattr(cls, "__abstractmethods__", ()) or ()):
-                    instantiable.append(f"{path.name}:{cls.__name__}")
-
-        assert sorted(instantiable) == [
-            "bigtreetechMotor.py:motion_controller_plugin",
-            "vna_plugin_custom.py:motion_controller_plugin",
-        ], (
-            "the set of instantiable motion drivers changed; update this test "
-            f"(found: {sorted(instantiable)})"
-        )

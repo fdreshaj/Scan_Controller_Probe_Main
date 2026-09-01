@@ -63,6 +63,8 @@ failure modes that shape carries rather than chasing line coverage.
 | `test_probe_simulator.py` | the shipped simulator, end to end through the controller | The closest thing to an integration test that runs with nothing attached. |
 | `test_plugin_setting.py` | operator input validation | Every number typed into the GUI arrives here as a string and leaves as a velocity or a travel distance. |
 | `test_scan_file.py` | file naming, metadata, HDF5 layout round trips | A scan runs for hours. A misnamed or overwritten output file means repeating it. |
+| `test_sparam_processing.py` | the FFT / filter / phase maths behind the visualizer | Physics assertions against synthetic data with a known closed-form answer: a reflector injected at 3 ns must come back at 3 ns, a high-pass told to remove antenna coupling must remove it. Wrong DSP draws a confident picture of the wrong thing, which beats a crash for hiding. |
+| `test_sparam_visualizer.py` | the visualizer window itself, driven headless | Loads a synthetic scan with a flat coupling term at 0.2 ns and a localised target at 3 ns, then asserts the 3 ns range bin lights up where the target is. Runs offscreen — no display, no window. |
 | `test_module_imports.py` | every first-party module parses and imports | Cheap and broad. Catches the syntax error, circular import, or deleted-name-with-surviving-reference that a cleanup can introduce. |
 | `test_static_hygiene.py` | flake8 F401/F811/F841 gate, duplicate definitions, unreachable code | The ratchet that stops the `Cleaning_day` dead-code removal from silently undoing itself. |
 
@@ -80,7 +82,8 @@ pytest -m hygiene       # static checks
 
 ## Reading the results
 
-A clean run is currently **376 passed, 63 skipped, 9 xfailed**.
+A clean run is currently **539 passed, 47 skipped, 9 xfailed** with every
+optional dependency installed.
 
 **Skips are expected.** A test skips when a vendor library isn't installed —
 `ftd2xx`, `nidaqmx`, `skrf`, `PySide6`. A CI box has no FTDI driver, and that
@@ -130,6 +133,11 @@ treats the method as optional while the interface demands it. Dropping
 - **Never** construct a real driver. Use `RecordingMotionPlugin` /
   `RecordingProbePlugin` from `tests/fakes.py`, or the `motion_plugin`,
   `probe_plugin` and `probe_simulator` fixtures.
+- **Anything that builds a Qt widget must request the `qapp` fixture.** Qt
+  *aborts the process* — it does not raise — when a widget is constructed with
+  no `QApplication`, so one careless test takes the whole run down. Several
+  plugins build their GUI in `__init__`; `scanner/Plugins/cyBot_Plugin.py` is
+  the one that found this.
 - The fakes implement their ABCs completely on purpose — they are the reference
   for what a conformant plugin looks like. `test_the_fake_implements_the_whole_abc`
   fails if one drifts.
