@@ -30,9 +30,11 @@ it follows the running scan live.
 readout beside it shows how long one full pass takes, and warns if the render
 cannot keep up with the rate you asked for.
 
-**Upscale** sets how many pixels each measurement point is drawn as (1x-16x).
-A scan grid is coarse -- a 24 x 18 raster is 24 x 18 pixels -- so it needs
-enlarging to be legible. **Smoothing** chooses how the gaps are filled:
+**Upscale** sets how many pixels each measurement point is *rendered* as
+(1x-16x). The heatmap stays the same size on screen -- this packs more pixels
+into it rather than making it bigger; use the mouse wheel to zoom. It only
+changes the picture with smoothing on, since replicated blocks look identical
+at any factor. **Smoothing** chooses how the gaps are filled:
 
 * `Nearest` - one flat block per point. Every pixel is a measured value.
 * `Bilinear` - blends between neighbouring points. Much easier to read on a

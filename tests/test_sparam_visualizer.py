@@ -27,6 +27,7 @@ pytest.importorskip("h5py", reason="pip install -r requirements-dev.txt")
 pytest.importorskip("PySide6", reason="pip install PySide6")
 
 import h5py  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
 
 from scanner import sparam_processing as sp  # noqa: E402
 import scanner.S_param_visualizer as viz  # noqa: E402
@@ -96,6 +97,16 @@ def window(qapp, tmp_path, request):
 
 def bin_nearest(axis, target):
     return int(np.argmin(np.abs(np.asarray(axis) - target)))
+
+
+def click_at(window, ix, iy):
+    """Click the centre of grid cell (ix, iy).
+
+    One scene unit is one measurement point regardless of the upscale factor,
+    and the image axes are transposed relative to the grid (column = y index,
+    row = x index), so the cell centre is (iy + 0.5, ix + 0.5).
+    """
+    window.on_heatmap_clicked(iy + 0.5, ix + 0.5)
 
 
 class TestLoading:
@@ -332,10 +343,7 @@ class TestTracePanel:
     def test_clicking_the_heatmap_selects_the_point_under_the_cursor(self, window):
         ix = bin_nearest(window.unique_x, TARGET_XY[0])
         iy = bin_nearest(window.unique_y, TARGET_XY[1])
-        scale = window.heatmap_scale_factor
-
-        # The renderer draws grid cell (ix, iy) at image column iy, row ix.
-        window.on_heatmap_clicked(iy * scale + 1, ix * scale + 1)
+        click_at(window, ix, iy)
 
         assert window.selected_point is not None
         assert window.point_coordinates(window.selected_point) == TARGET_XY
@@ -386,8 +394,7 @@ class TestTracePanel:
         range profile should peak at the delay the target was injected at."""
         ix = bin_nearest(window.unique_x, TARGET_XY[0])
         iy = bin_nearest(window.unique_y, TARGET_XY[1])
-        scale = window.heatmap_scale_factor
-        window.on_heatmap_clicked(iy * scale + 1, ix * scale + 1)
+        click_at(window, ix, iy)
 
         window.trace_checkbox.setChecked(True)
         window.domain_combo.setCurrentText(viz.DOMAIN_TIME)
@@ -867,6 +874,56 @@ class TestUpscaling:
     flat blocks or interpolated.
     """
 
+    def test_the_heatmap_keeps_the_same_footprint_at_every_factor(self, window):
+        """Raising the factor must pack pixels in, not blow the picture up.
+
+        The first cut scaled the scene with the pixmap, so going 4x -> 16x
+        quadrupled the image on screen and left you scrolling around something
+        far too big to read. The pixmap item is now scaled by 1/factor, so the
+        heatmap occupies one scene unit per measurement point no matter what.
+        """
+        footprints = []
+        for factor in viz.UPSCALE_FACTORS:
+            window.upscale_combo.setCurrentText(f"{factor}×")
+            rect = window.scene.itemsBoundingRect()
+            footprints.append((round(rect.width(), 6), round(rect.height(), 6)))
+
+        assert len(set(footprints)) == 1, f"footprint changed with factor: {footprints}"
+        assert footprints[0] == (len(window.unique_y), len(window.unique_x))
+
+    def test_the_on_screen_size_does_not_change_with_the_factor(self, window):
+        """What the operator actually notices: the picture stays put."""
+        window.upscale_combo.setCurrentText("2×")
+        before = window.view.transform().mapRect(window.scene.itemsBoundingRect())
+        window.upscale_combo.setCurrentText("16×")
+        after = window.view.transform().mapRect(window.scene.itemsBoundingRect())
+
+        assert after.width() == pytest.approx(before.width())
+        assert after.height() == pytest.approx(before.height())
+
+    def test_the_pixmap_still_gains_resolution(self, window):
+        """The footprint is fixed, but the pixels behind it are not -- that is
+        the whole point of the control."""
+        window.upscale_combo.setCurrentText("2×")
+        small = window.scene.items()[0].pixmap().width()
+        window.upscale_combo.setCurrentText("16×")
+        large = window.scene.items()[0].pixmap().width()
+        assert large == small * 8
+
+    def test_the_item_is_scaled_down_to_compensate(self, window):
+        for factor in viz.UPSCALE_FACTORS:
+            window.upscale_combo.setCurrentText(f"{factor}×")
+            item = window.scene.items()[0]
+            assert item.scale() == pytest.approx(1.0 / factor)
+
+    def test_qt_adds_no_smoothing_of_its_own(self, window):
+        """Nearest promises every pixel is a measured value. If Qt resampled
+        the item smoothly on the way to the screen it would blur across
+        measurement points and quietly break that."""
+        window.upscale_combo.setCurrentText("8×")
+        item = window.scene.items()[0]
+        assert item.transformationMode() == Qt.FastTransformation
+
     def test_the_default_matches_the_previous_fixed_behaviour(self, window):
         assert window.upscale_combo.currentData() == viz.DEFAULT_UPSCALE_FACTOR
         assert window.interp_combo.currentText() == viz.INTERP_NEAREST
@@ -881,16 +938,15 @@ class TestUpscaling:
     @pytest.mark.parametrize("factor", viz.UPSCALE_FACTORS)
     @pytest.mark.parametrize("mode", viz.INTERP_MODES)
     def test_clicking_still_picks_the_right_point(self, window, factor, mode):
-        """The hit test divides by the scale factor, so renderer and click
-        handler must agree at every setting. The bilinear path uses the
-        half-pixel convention precisely so that pixel // scale still names the
-        measurement point underneath."""
+        """One scene unit is one measurement point at every factor, so the
+        hit test is just int(coordinate) and cannot drift out of step with the
+        renderer. The bilinear path uses the half-pixel convention so the cell
+        under a given coordinate is the same in both smoothing modes."""
         window.interp_combo.setCurrentText(mode)
         window.upscale_combo.setCurrentText(f"{factor}×")
-        scale = window.heatmap_scale_factor
 
         for ix, iy in ((0, 0), (3, 2), (7, 5)):
-            window.on_heatmap_clicked(iy * scale + scale // 2, ix * scale + scale // 2)
+            click_at(window, ix, iy)
             assert window.point_coordinates(window.selected_point) == (
                 float(window.unique_x[ix]), float(window.unique_y[iy])
             )

@@ -62,8 +62,11 @@ MIN_PLAYBACK_FPS = 1
 MAX_PLAYBACK_FPS = 60
 DEFAULT_PLAYBACK_FPS = 8
 
-#: Pixels drawn per measurement point. The scan grid is coarse -- a 24 x 18
-#: raster is 24 x 18 pixels -- so it is enlarged to be legible.
+#: Pixels rendered per measurement point. The heatmap always occupies the same
+#: area on screen -- the pixmap item is scaled by 1/factor -- so raising this
+#: packs more pixels into the same picture rather than enlarging it. It only
+#: changes what you see when Smoothing is on, since replicated blocks look
+#: identical at any factor.
 UPSCALE_FACTORS = (1, 2, 4, 8, 16)
 DEFAULT_UPSCALE_FACTOR = 4
 
@@ -404,9 +407,12 @@ class VisualizerWindow(QWidget):
             self.upscale_combo.addItem(f"{factor}×", factor)
         self.upscale_combo.setCurrentIndex(UPSCALE_FACTORS.index(DEFAULT_UPSCALE_FACTOR))
         self.upscale_combo.setToolTip(
-            "Pixels drawn per measurement point.\n"
-            "A scan grid is coarse -- a 24 x 18 raster is 24 x 18 pixels -- so "
-            "it is enlarged to be legible. Purely a display setting; the data "
+            "Pixels rendered per measurement point.\n"
+            "The heatmap stays the same size on screen -- this packs more "
+            "pixels into it, it does not make it bigger. Use the mouse wheel "
+            "to zoom.\n"
+            "Only changes the picture with Smoothing on: replicated blocks "
+            "look the same at any factor. Purely a display setting; the data "
             "is untouched and clicking still picks the real measurement point."
         )
         self.upscale_combo.currentIndexChanged.connect(self.on_render_changed)
@@ -1169,8 +1175,28 @@ class VisualizerWindow(QWidget):
             # Convert to pixmap and add to scene
             pixmap = QPixmap.fromImage(heatmap_image)
             pixmap_item = QGraphicsPixmapItem(pixmap)
+
+            # One scene unit = one measurement point, whatever the upscale
+            # factor. Shrinking the item by 1/factor keeps the heatmap the same
+            # size on screen and packs the extra pixels into it, instead of
+            # growing the image four-fold every time the factor goes up (which
+            # left you scrolling around a picture far too big to read).
+            #
+            # It also decouples the hit test from the renderer: a click is just
+            # int(scene coordinate), with no scale factor in the arithmetic.
+            scale = self.heatmap_scale_factor
+            if scale != 1:
+                pixmap_item.setScale(1.0 / scale)
+
+            # Nearest-neighbour on the way to the screen, so the pixels you see
+            # are the pixels that were computed. Smoothing is the Smoothing
+            # control's job; Qt should not add its own on top and blur the
+            # "every pixel is a measured value" promise of Nearest mode.
+            pixmap_item.setTransformationMode(Qt.FastTransformation)
+
             self.scene.addItem(pixmap_item)
-            
+
+
             # The empty-state placeholder pins the scene rect to the size of
             # its text. Nothing else resets it, so without this the scrollable
             # area stays text-sized and the heatmap will not fit to the view.
@@ -1260,16 +1286,17 @@ class VisualizerWindow(QWidget):
     def on_heatmap_clicked(self, scene_x, scene_y):
         """Turn a click on the heatmap into the measurement point under it.
 
-        `create_heatmap_image` draws grid cell (ix, iy) as a `scale_factor`
-        block at image column `iy`, row `ix` -- the image axes are transposed
-        relative to the grid, so the mapping back is y->row, x->column.
+        The pixmap item is scaled so that one scene unit is one measurement
+        point regardless of the upscale factor, so the coordinate *is* the grid
+        index. `create_heatmap_image` draws grid cell (ix, iy) at image column
+        `iy`, row `ix` -- the image axes are transposed relative to the grid --
+        so the mapping back is y->row, x->column.
         """
         if self.grid_point_index is None:
             return
 
-        scale = self.heatmap_scale_factor
-        row = int(scene_y // scale)   # index into unique_x
-        col = int(scene_x // scale)   # index into unique_y
+        row = int(scene_y)   # index into unique_x
+        col = int(scene_x)   # index into unique_y
 
         rows, cols = self.grid_point_index.shape
         if not (0 <= row < rows and 0 <= col < cols):

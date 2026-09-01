@@ -82,7 +82,7 @@ pytest -m hygiene       # static checks
 
 ## Reading the results
 
-A clean run is currently **604 passed, 46 skipped, 9 xfailed** with every
+A clean run is currently **609 passed, 46 skipped, 9 xfailed** with every
 optional dependency installed.
 
 **Skips are expected.** A test skips when a vendor library isn't installed —
