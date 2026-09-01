@@ -14,6 +14,8 @@ display, no window ever appears.
 from __future__ import annotations
 
 import os
+import pathlib
+import sys
 
 import numpy as np
 import pytest
@@ -507,3 +509,244 @@ class TestDegradedInputs:
         window.freq_slider.setValue(window.freq_slider.maximum())
         window.play_next_frame()
         assert window.freq_index == 0
+
+
+class TestStandaloneEmptyState:
+    """Run on its own, the window opens with only Import live.
+
+        python -m scanner.S_param_visualizer
+
+    No modal dialog blocks startup -- the old entry point asked for a file
+    first and exited if you cancelled, so there was no way to just look at the
+    window.
+    """
+
+    @pytest.fixture
+    def empty(self, qapp):
+        w = viz.VisualizerWindow()
+        w.timer.stop()
+        yield w
+        w.play_timer.stop()
+        w.close()
+
+    def test_it_constructs_with_no_path_at_all(self, empty):
+        assert empty.hdf5_filepath is None
+        assert empty.has_file() is False
+
+    def test_it_says_what_to_do(self, empty):
+        assert empty.status_label.text() == "No file loaded"
+        placeholder = empty.scene.items()[0].toPlainText()
+        assert "import" in placeholder.lower()
+
+    def test_import_is_the_only_live_control(self, empty):
+        assert empty.import_button.isEnabled()
+        for name in (
+            "sparam_combo", "datatype_combo", "colormap_combo", "domain_combo",
+            "window_combo", "filter_combo", "cutoff_spin", "freq_slider",
+            "trace_checkbox", "play_button",
+        ):
+            assert not getattr(empty, name).isEnabled(), name
+
+    def test_the_import_button_is_labelled_not_just_an_icon(self, empty):
+        """With everything else greyed out it is the only thing to click, so
+        it should say so rather than being a bare glyph."""
+        assert "Import" in empty.import_button.text()
+
+    def test_the_placeholder_is_not_blown_up_to_fill_the_view(self, empty):
+        """fitInView would scale a short string to the whole viewport."""
+        assert empty.view.transform().m11() == pytest.approx(1.0)
+
+    def test_the_readouts_are_blank_rather_than_stale(self, empty):
+        assert empty.points_label.text() == "Points: 0"
+        assert empty.grid_label.text() == "Grid: --"
+        assert empty.freq_value_label.text() == "--"
+
+    def test_polling_a_missing_file_is_a_no_op(self, empty):
+        """The 500 ms timer keeps running; it must not churn on nothing."""
+        empty.check_for_updates()
+        empty.update_visualization()
+        assert empty.status_label.text() == "No file loaded"
+
+    def test_a_path_that_does_not_exist_opens_empty_not_broken(self, qapp, tmp_path):
+        """The scanner GUI hands over a filename derived from scan metadata,
+        which may not have been written yet."""
+        w = viz.VisualizerWindow(str(tmp_path / "never_written.h5"))
+        w.timer.stop()
+        try:
+            assert w.has_file() is False
+            assert "not found" in w.status_label.text()
+            assert not w.domain_combo.isEnabled()
+            assert w.import_button.isEnabled()
+        finally:
+            w.play_timer.stop()
+            w.close()
+
+
+class TestImportFlow:
+    """Importing is what takes the window from empty to usable."""
+
+    @pytest.fixture
+    def empty(self, qapp):
+        w = viz.VisualizerWindow()
+        w.timer.stop()
+        yield w
+        w.play_timer.stop()
+        w.close()
+
+    @staticmethod
+    def choose(monkeypatch, path):
+        """Stub only the modal dialog, so the real import path still runs."""
+        monkeypatch.setattr(
+            viz.QFileDialog, "getOpenFileName",
+            staticmethod(lambda *a, **k: (str(path), "")),
+        )
+
+    def test_importing_enables_everything(self, empty, monkeypatch, tmp_path):
+        self.choose(monkeypatch, write_scan(tmp_path / "scan.h5"))
+        empty.import_new_file()
+
+        assert empty.available_sparams == ["S11"]
+        for name in (
+            "sparam_combo", "datatype_combo", "colormap_combo", "domain_combo",
+            "window_combo", "filter_combo", "freq_slider", "play_button",
+        ):
+            assert getattr(empty, name).isEnabled(), name
+
+    def test_the_cutoff_stays_disabled_until_a_filter_is_chosen(
+        self, empty, monkeypatch, tmp_path
+    ):
+        self.choose(monkeypatch, write_scan(tmp_path / "scan.h5"))
+        empty.import_new_file()
+
+        assert not empty.cutoff_spin.isEnabled()
+        empty.filter_combo.setCurrentText(sp.FILTER_HIGH_PASS)
+        assert empty.cutoff_spin.isEnabled()
+
+    def test_the_views_work_after_importing(self, empty, monkeypatch, tmp_path):
+        self.choose(monkeypatch, write_scan(tmp_path / "scan.h5"))
+        empty.import_new_file()
+
+        empty.domain_combo.setCurrentText(viz.DOMAIN_TIME)
+        assert empty._display_slice() is not None
+        empty.datatype_combo.setCurrentText(sp.DISPLAY_PHASE_UNWRAPPED)
+        assert empty._display_slice() is not None
+
+    def test_the_view_re_fits_to_the_newly_imported_scan(self, empty, monkeypatch, tmp_path):
+        """The reset flag was checked with hasattr, which never goes back to
+        False, so an imported scan kept the previous view transform -- from the
+        empty placeholder, or from a differently sized earlier file."""
+        self.choose(monkeypatch, write_scan(tmp_path / "scan.h5", nx=30, ny=24))
+        empty.import_new_file()
+
+        assert empty._view_fitted is True
+
+        rect = empty.scene.itemsBoundingRect()
+        # The scene rect must follow the data. show_empty_state pins it to the
+        # size of the placeholder text, and a stale text-sized scene rect
+        # leaves the heatmap unfitted with stray scrollbars.
+        assert empty.view.sceneRect().width() == pytest.approx(rect.width())
+        assert empty.view.sceneRect().height() == pytest.approx(rect.height())
+
+        # Snug, not merely visible: one axis should fill the viewport.
+        viewport = empty.view.viewport().rect()
+        scale = empty.view.transform().m11()
+        assert scale == pytest.approx(
+            min(viewport.width() / rect.width(), viewport.height() / rect.height()),
+            rel=0.02,
+        )
+
+    def test_the_title_names_the_loaded_file(self, empty, monkeypatch, tmp_path):
+        self.choose(monkeypatch, write_scan(tmp_path / "my_scan.h5"))
+        empty.import_new_file()
+        assert "my_scan.h5" in empty.windowTitle()
+
+    def test_cancelling_the_dialog_changes_nothing(self, empty, monkeypatch):
+        monkeypatch.setattr(
+            viz.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", ""))
+        )
+        empty.import_new_file()
+
+        assert empty.hdf5_filepath is None
+        assert empty.status_label.text() == "No file loaded"
+        assert not empty.domain_combo.isEnabled()
+
+    def test_a_file_with_no_scan_data_reports_and_stays_disabled(
+        self, empty, monkeypatch, tmp_path
+    ):
+        """A readable HDF5 file that is not a scan. Saying so beats a blank
+        window with live controls that have nothing to act on."""
+        path = tmp_path / "notascan.h5"
+        with h5py.File(path, "w") as f:
+            f.create_dataset("/something/else", data=[1, 2, 3])
+        self.choose(monkeypatch, path)
+
+        empty.import_new_file()
+
+        assert "No S-parameter data" in empty.status_label.text()
+        assert not empty.domain_combo.isEnabled()
+        assert empty.import_button.isEnabled(), "must still be able to try again"
+
+    def test_importing_a_second_file_replaces_the_first(
+        self, empty, monkeypatch, tmp_path
+    ):
+        self.choose(monkeypatch, write_scan(tmp_path / "first.h5", nx=8, ny=6))
+        empty.import_new_file()
+        assert empty.grid_label.text() == "Grid: 8 × 6"
+
+        self.choose(monkeypatch, write_scan(tmp_path / "second.h5", nx=5, ny=4))
+        empty.import_new_file()
+        assert empty.grid_label.text() == "Grid: 5 × 4"
+        assert "second.h5" in empty.windowTitle()
+
+    def test_importing_over_a_bad_file_recovers(self, empty, monkeypatch, tmp_path):
+        bad = tmp_path / "bad.h5"
+        with h5py.File(bad, "w") as f:
+            f.create_dataset("/nope", data=[1])
+        self.choose(monkeypatch, bad)
+        empty.import_new_file()
+        assert not empty.domain_combo.isEnabled()
+
+        self.choose(monkeypatch, write_scan(tmp_path / "good.h5"))
+        empty.import_new_file()
+        assert empty.domain_combo.isEnabled()
+        assert empty.available_sparams == ["S11"]
+
+
+class TestStandaloneEntryPoint:
+    def test_main_is_callable_and_documented(self):
+        """`python -m scanner.S_param_visualizer` routes through main()."""
+        assert callable(viz.main)
+        assert "python -m scanner.S_param_visualizer" in viz.main.__doc__
+
+    def test_the_module_imports_as_a_bare_script(self):
+        """`python scanner/S_param_visualizer.py` puts the script's own
+        directory on sys.path, not the repo root, so a plain
+        `from scanner import ...` would find scanner/scanner.py -- a module,
+        not the package -- and fail to import. The bootstrap at the top of the
+        file fixes that.
+
+        Run in a subprocess with sys.path arranged exactly as Python arranges
+        it for a bare script, and with a run_name other than "__main__" so the
+        event loop never starts.
+        """
+        import subprocess
+
+        source = pathlib.Path(viz.__file__).resolve()
+        script = (
+            "import sys, os, runpy\n"
+            f"sys.path.insert(0, {str(source.parent)!r})\n"
+            # Drop the repo root, so only the bootstrap can save us.
+            f"sys.path = [p for p in sys.path if os.path.abspath(p or '.') "
+            f"!= {str(source.parent.parent)!r}]\n"
+            f"runpy.run_path({str(source)!r}, run_name='__not_main__')\n"
+            "print('IMPORT-OK')\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+        )
+        assert "IMPORT-OK" in result.stdout, (
+            f"bare-script import failed\nstdout: {result.stdout}\n"
+            f"stderr: {result.stderr}"
+        )

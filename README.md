@@ -11,3 +11,15 @@ For Gcode motion drivers use plugin named "bigtreetechMotor"
 For Gecko motion drivers use plugin named "motion_controller_plugin"
 
 For VNA connection use plugin named "Simplified_VNA_Plugin"
+
+## Viewing a scan on its own
+
+The S-parameter visualizer runs without the scanner GUI, for looking at scans
+after the fact:
+
+    python -m scanner.S_param_visualizer              # opens empty; use Import
+    python -m scanner.S_param_visualizer scan.h5      # opens that file
+
+With no argument the window opens with everything greyed out except the
+Import button. The same window is reachable from inside the scanner GUI, where
+it follows the running scan live.

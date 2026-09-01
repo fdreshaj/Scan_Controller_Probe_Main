@@ -5,10 +5,20 @@
 #############
 
 
+import os
+import sys
+
+if __package__ in (None, ""):
+    # Being run as a plain script (`python scanner/S_param_visualizer.py`).
+    # Python puts the script's own directory on sys.path, not the repo root, so
+    # `import scanner` would find scanner/scanner.py -- a module, not the
+    # package -- and blow up. Put the repo root first so the package wins.
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QGraphicsPixmapItem, QSlider,
-    QDoubleSpinBox, QCheckBox, QSplitter
+    QDoubleSpinBox, QCheckBox, QSplitter, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QColor, QFont, QImage, QPixmap
@@ -92,13 +102,30 @@ class ZoomableGraphicsView(QGraphicsView):
     
 
 class VisualizerWindow(QWidget):
-    
-    def __init__(self, hdf5_filepath):
+    """Live heatmap of a scan, with FFT, delay-filter and phase views.
+
+    Two ways in:
+
+    * The scanner GUI constructs it with the path of the scan it just started,
+      and the window follows the file as points are written.
+    * On its own -- ``python -m scanner.S_param_visualizer`` -- with no path.
+      The window opens empty with everything but the Import button disabled,
+      and comes to life once a file is chosen.
+
+    A path that does not exist is treated as the empty case rather than an
+    error, so a mistyped or not-yet-created file leaves a usable window.
+    """
+
+    def __init__(self, hdf5_filepath=None):
         super().__init__(None)
         self.setWindowTitle("Real-Time Scan Visualizer")
         self.resize(900, 800)
-        
+
         self.hdf5_filepath = hdf5_filepath
+        if hdf5_filepath:
+            self.setWindowTitle(
+                f"Real-Time Scan Visualizer - {os.path.basename(hdf5_filepath)}"
+            )
         self.last_point_read = 0
         self.all_data = {}  # Dictionary to store data for each S-parameter
         self.all_x = []
@@ -142,26 +169,104 @@ class VisualizerWindow(QWidget):
         
         # Setup UI
         self.setup_ui()
-        
+
         # Do initial read to get metadata
         self.initial_setup()
-        
-        # Setup timer for updating - ALWAYS runs to check for changes
+
+        # Setup timer for updating - ALWAYS runs to check for changes.
+        # It is harmless with no file loaded: check_for_updates returns early.
         self.timer = QTimer()
         self.timer.timeout.connect(self.check_for_updates)
         self.timer.start(500)  # Check every 500ms
-        
+
         # Do initial visualization
         self.update_visualization()
-        
+        self.update_enabled_state()
+
+    # ----------------------------------------------------------------------
+    # Empty state
+    # ----------------------------------------------------------------------
+
+    def has_file(self) -> bool:
+        """Whether a readable scan file is currently loaded."""
+        return bool(self.hdf5_filepath) and os.path.isfile(self.hdf5_filepath)
+
+    def update_enabled_state(self):
+        """Grey out everything that needs data, leaving only Import.
+
+        Running the visualizer on its own opens an empty window. Rather than
+        offering controls that would do nothing -- or worse, raise -- the whole
+        toolbar is disabled until a file is loaded, so the one thing that *is*
+        actionable is obvious.
+        """
+        loaded = self.has_file() and bool(self.available_sparams)
+
+        for widget in (
+            self.sparam_combo,
+            self.datatype_combo,
+            self.colormap_combo,
+            self.domain_combo,
+            self.window_combo,
+            self.filter_combo,
+            self.freq_slider,
+            self.trace_checkbox,
+        ):
+            widget.setEnabled(loaded)
+
+        # These two have their own rules on top of "is a file loaded".
+        self.cutoff_spin.setEnabled(
+            loaded and self.filter_combo.currentText() != sp.FILTER_OFF
+        )
+        self.trace_checkbox.setEnabled(loaded and TRACE_PLOT_AVAILABLE)
+        self.play_button.setEnabled(
+            loaded and self.freq_slider.maximum() > 0
+        )
+
+        if not loaded:
+            self.show_empty_state()
+
+    def show_empty_state(self):
+        """Put a short instruction where the heatmap would be."""
+        self.scene.clear()
+        message = self.scene.addText(
+            "No scan loaded\n\n"
+            "Use “📁 Import HDF5…” above to open a scan file (.hdf5, .h5)",
+            QFont("Arial", 13),
+        )
+        message.setDefaultTextColor(QColor(130, 130, 130))
+        # Show it at its natural size and centred. fitInView would scale a
+        # short string up to fill the whole viewport.
+        self.view.resetTransform()
+        self.view.current_zoom = 1.0
+        self.view.setSceneRect(message.boundingRect())
+        self.view.centerOn(message)
+        # The next real draw must re-fit to the data, not keep this transform.
+        self._view_fitted = False
+
+        if self.hdf5_filepath and not os.path.isfile(self.hdf5_filepath):
+            self.status_label.setText(
+                f"File not found: {os.path.basename(self.hdf5_filepath)}"
+            )
+        else:
+            self.status_label.setText("No file loaded")
+
+        self.points_label.setText("Points: 0")
+        self.grid_label.setText("Grid: --")
+        self.min_label.setText("Min: --")
+        self.max_label.setText("Max: --")
+        self.freq_value_label.setText("--")
+
     def setup_ui(self):
         layout = QVBoxLayout()
         
         # Top control bar
         control_layout = QHBoxLayout()
         
-        # Import button
-        self.import_button = QPushButton("📁")
+        # Import button. The one control that is always live -- with nothing
+        # loaded it is the only thing on the toolbar that does anything, so it
+        # carries a label rather than a bare icon.
+        self.import_button = QPushButton("📁 Import HDF5…")
+        self.import_button.setToolTip("Open an HDF5 scan file (.hdf5, .h5)")
         self.import_button.clicked.connect(self.import_new_file)
         control_layout.addWidget(self.import_button)
         
@@ -381,6 +486,8 @@ class VisualizerWindow(QWidget):
     
     def initial_setup(self):
         """Initial setup - read metadata and discover S-parameters"""
+        if not self.has_file():
+            return
         try:
             with h5py.File(self.hdf5_filepath, 'r', libver='latest', swmr=True) as hf:
                 # Try to read expected number of points
@@ -403,6 +510,10 @@ class VisualizerWindow(QWidget):
     
     def check_for_updates(self):
         """Check for new data and update if needed"""
+        # With no file loaded there is nothing to poll, and re-opening a
+        # missing path twice a second would just churn.
+        if not self.has_file():
+            return
         # Always call update_visualization - it will check internally
         # if there's actually new data to display.
         # We can't rely on file size/mtime for zero-padded HDF5 files.
@@ -631,21 +742,29 @@ class VisualizerWindow(QWidget):
         self.populate_axis_slider()
 
     def import_new_file(self):
-        """Import a new HDF5 file"""
-        from PySide6.QtWidgets import QFileDialog
-        
+        """Import a new HDF5 file.
+
+        The only control that stays live with nothing loaded, so it is also the
+        entry point when the visualizer is run on its own.
+        """
         # Stop any ongoing playback
         if self.is_playing:
             self.toggle_play()
-        
+
+        # Start the dialog in the directory of the current file, if there is
+        # one -- scans from a session tend to live together.
+        start_dir = ""
+        if self.hdf5_filepath:
+            start_dir = os.path.dirname(os.path.abspath(self.hdf5_filepath))
+
         # Open file dialog
         hdf5_file, _ = QFileDialog.getOpenFileName(
             self,
             "Select HDF5 Scan File",
-            "",
+            start_dir,
             "HDF5 Files (*.hdf5 *.h5);;All Files (*)"
         )
-        
+
         if hdf5_file:
             # Reset all state
             self.hdf5_filepath = hdf5_file
@@ -683,6 +802,21 @@ class VisualizerWindow(QWidget):
             # Re-setup and update
             self.initial_setup()
             self.update_visualization()
+
+            if not self.available_sparams:
+                # A readable file with no /Data group, or not a scan file at
+                # all. Say so instead of leaving a blank window with live
+                # controls that have nothing to act on.
+                self.update_enabled_state()
+                self.status_label.setText(
+                    f"No S-parameter data in {os.path.basename(hdf5_file)}"
+                )
+                return
+
+            self.setWindowTitle(
+                f"Real-Time Scan Visualizer - {os.path.basename(hdf5_file)}"
+            )
+            self.update_enabled_state()
 
     def on_slider_changed(self, value):
         """Handle slider change (frequency bin, or range bin in the FFT view)"""
@@ -787,7 +921,7 @@ class VisualizerWindow(QWidget):
     
     def update_visualization(self):
         """Read new data from HDF5 file and update visualization"""
-        if not self.current_sparam:
+        if not self.has_file() or not self.current_sparam:
             return
         
         try:
@@ -916,8 +1050,16 @@ class VisualizerWindow(QWidget):
             pixmap_item = QGraphicsPixmapItem(pixmap)
             self.scene.addItem(pixmap_item)
             
+            # The empty-state placeholder pins the scene rect to the size of
+            # its text. Nothing else resets it, so without this the scrollable
+            # area stays text-sized and the heatmap will not fit to the view.
+            self.view.setSceneRect(self.scene.itemsBoundingRect())
+
             # Only fit view on first draw, otherwise restore previous transform
-            if not hasattr(self, '_view_fitted'):
+            # getattr, not hasattr: import_new_file sets this back to False to
+            # ask for a re-fit, and hasattr would stay True forever, leaving a
+            # newly imported scan at the previous file's zoom.
+            if not getattr(self, '_view_fitted', False):
                 self.view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)
                 self._view_fitted = True
             else:
@@ -1282,25 +1424,28 @@ class VisualizerWindow(QWidget):
         event.accept()
 
 
-# For testing
+def main(argv=None):
+    """Run the visualizer on its own.
+
+        python -m scanner.S_param_visualizer [scan.h5]
+
+    With no argument the window opens empty and the only live control is
+    Import -- no modal file dialog blocks startup, so the window is always
+    there to look at. A path given on the command line is loaded straight away.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    argv = sys.argv if argv is None else argv
+    app = QApplication.instance() or QApplication(argv)
+
+    path = argv[1] if len(argv) > 1 else None
+    if path and not os.path.isfile(path):
+        print(f"Warning: {path} not found; opening empty.")
+
+    window = VisualizerWindow(path)
+    window.show()
+    return app.exec()
+
+
 if __name__ == "__main__":
-    from PySide6.QtWidgets import QApplication, QFileDialog
-    import sys
-    
-    app = QApplication(sys.argv)
-    
-    # Open file dialog to select HDF5 file
-    hdf5_file, _ = QFileDialog.getOpenFileName(
-        None,
-        "Select HDF5 Scan File",
-        "",
-        "HDF5 Files (*.hdf5 *.h5);;All Files (*)"
-    )
-    
-    if hdf5_file:
-        window = VisualizerWindow(hdf5_file)
-        window.show()
-        sys.exit(app.exec())
-    else:
-        print("No file selected, exiting...")
-        sys.exit(0)
+    sys.exit(main())

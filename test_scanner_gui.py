@@ -1121,8 +1121,25 @@ class MainWindow(QMainWindow):
         webbrowser.open_new(manual_path)
     
     def open_visualizer(self):
-        if not hasattr(self, "VisualizerWindow"):
-            self.visualizer_window = VisualizerWindow(f"{self.metaData[1]}.hdf5") 
+        """Show the S-parameter visualizer, on the current scan if there is one.
+
+        Before a scan has been configured there is no `metaData`, so the window
+        opens empty with only its Import button live -- the same state you get
+        running `python -m scanner.S_param_visualizer` on its own. That beats
+        the button doing nothing, which is what it used to do: it raised
+        AttributeError reaching for metaData that did not exist yet.
+        """
+        scan_file = None
+        try:
+            scan_file = f"{self.metaData[1]}.hdf5"
+        except (AttributeError, IndexError):
+            pass  # no scan configured yet; let the operator import one
+
+        # The guard used to test for "VisualizerWindow" -- the class name, not
+        # the attribute -- so it never matched and every click built another
+        # window, orphaning the previous one.
+        if not hasattr(self, "visualizer_window"):
+            self.visualizer_window = VisualizerWindow(scan_file)
         self.visualizer_window.show()
         self.visualizer_window.raise_()
         self.visualizer_window.activateWindow()
