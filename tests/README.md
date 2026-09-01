@@ -64,7 +64,7 @@ failure modes that shape carries rather than chasing line coverage.
 | `test_plugin_setting.py` | operator input validation | Every number typed into the GUI arrives here as a string and leaves as a velocity or a travel distance. |
 | `test_scan_file.py` | file naming, metadata, HDF5 layout round trips | A scan runs for hours. A misnamed or overwritten output file means repeating it. |
 | `test_sparam_processing.py` | the FFT / filter / phase maths behind the visualizer | Physics assertions against synthetic data with a known closed-form answer: a reflector injected at 3 ns must come back at 3 ns, a high-pass told to remove antenna coupling must remove it. Wrong DSP draws a confident picture of the wrong thing, which beats a crash for hiding. |
-| `test_sparam_visualizer.py` | the visualizer window itself, driven headless | Loads a synthetic scan with a flat coupling term at 0.2 ns and a localised target at 3 ns, then asserts the 3 ns range bin lights up where the target is. Also covers the standalone empty state and the import flow. Runs offscreen — no display, no window. |
+| `test_sparam_visualizer.py` | the visualizer window itself, driven headless | Loads a synthetic scan with a flat coupling term at 0.2 ns and a localised target at 3 ns, then asserts the 3 ns range bin lights up where the target is. Also covers the standalone empty state, the import flow, playback speed, and heatmap upscaling. Runs offscreen — no display, no window. |
 | `test_module_imports.py` | every first-party module parses and imports | Cheap and broad. Catches the syntax error, circular import, or deleted-name-with-surviving-reference that a cleanup can introduce. |
 | `test_static_hygiene.py` | flake8 F401/F811/F841 gate, duplicate definitions, unreachable code | The ratchet that stops the `Cleaning_day` dead-code removal from silently undoing itself. |
 
@@ -82,7 +82,7 @@ pytest -m hygiene       # static checks
 
 ## Reading the results
 
-A clean run is currently **559 passed, 46 skipped, 9 xfailed** with every
+A clean run is currently **604 passed, 46 skipped, 9 xfailed** with every
 optional dependency installed.
 
 **Skips are expected.** A test skips when a vendor library isn't installed —

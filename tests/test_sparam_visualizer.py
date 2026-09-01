@@ -750,3 +750,243 @@ class TestStandaloneEntryPoint:
             f"bare-script import failed\nstdout: {result.stdout}\n"
             f"stderr: {result.stderr}"
         )
+
+
+class TestPlaybackSpeed:
+    """The Play button used to run at a 0 ms timer interval.
+
+    QTimer truncates the old `play_speed = 0.05` to 0 ms, so playback advanced
+    as fast as the event loop would go -- hundreds of frames a second once the
+    renderer was vectorised, far too quick to read.
+    """
+
+    def test_the_default_is_a_readable_rate(self, window):
+        assert window.speed_spin.value() == viz.DEFAULT_PLAYBACK_FPS
+        assert viz.DEFAULT_PLAYBACK_FPS <= 12, "the default must be watchable"
+
+    def test_the_interval_is_derived_from_the_rate(self, window):
+        window.speed_spin.setValue(10)
+        assert window.play_speed == 100
+        window.speed_spin.setValue(4)
+        assert window.play_speed == 250
+
+    def test_the_interval_is_never_zero(self, window):
+        """A 0 ms interval is what made playback unwatchable."""
+        for fps in range(viz.MIN_PLAYBACK_FPS, viz.MAX_PLAYBACK_FPS + 1):
+            window.speed_spin.setValue(fps)
+            assert window.play_speed >= 1
+
+    def test_the_rate_is_bounded(self, window):
+        window.speed_spin.setValue(10_000)
+        assert window.speed_spin.value() == viz.MAX_PLAYBACK_FPS
+        window.speed_spin.setValue(0)
+        assert window.speed_spin.value() == viz.MIN_PLAYBACK_FPS
+
+    def test_play_uses_the_chosen_interval(self, window):
+        window.speed_spin.setValue(5)
+        window.toggle_play()
+        try:
+            assert window.play_timer.isActive()
+            assert window.play_timer.interval() == 200
+        finally:
+            window.toggle_play()
+
+    def test_changing_speed_mid_play_takes_effect_immediately(self, window):
+        """Otherwise you would have to stop and restart to re-time it."""
+        window.speed_spin.setValue(20)
+        window.toggle_play()
+        try:
+            assert window.play_timer.interval() == 50
+            window.speed_spin.setValue(2)
+            assert window.play_timer.interval() == 500
+            assert window.play_timer.isActive(), "must not stop playback"
+        finally:
+            window.toggle_play()
+
+    def test_changing_speed_while_stopped_does_not_start_playback(self, window):
+        window.speed_spin.setValue(3)
+        assert not window.play_timer.isActive()
+
+    def test_the_pass_duration_is_shown(self, window):
+        """Frames per second is not the number you care about; how long you
+        will be sitting there is."""
+        window.speed_spin.setValue(10)
+        text = window.sweep_time_label.text()
+        assert "201 frames" in text
+        assert "20 s/pass" in text
+
+    def test_the_pass_duration_follows_the_domain(self, window):
+        window.speed_spin.setValue(10)
+        before = window.sweep_time_label.text()
+        window.domain_combo.setCurrentText(viz.DOMAIN_TIME)
+        assert window.sweep_time_label.text()
+        # Same bin count here, but the label must have been recomputed, not
+        # left over from the frequency axis.
+        assert "frames" in window.sweep_time_label.text()
+        assert before  # sanity
+
+    def test_playback_still_advances_one_frame_at_a_time(self, window):
+        window.freq_slider.setValue(0)
+        window.play_next_frame()
+        assert window.freq_index == 1
+
+    def test_a_slow_render_is_reported_rather_than_silently_capping(self, window):
+        """A frame that costs more than the interval makes the timer fire late,
+        so the requested rate is not achieved. Saying so beats letting the
+        Speed control look broken."""
+        window.speed_spin.setValue(60)
+        window.toggle_play()
+        try:
+            window._last_frame_ms = 250.0  # as if a heavy upscale were on
+            window.update_sweep_time_label()
+            assert "render-limited" in window.sweep_time_label.text()
+        finally:
+            window.toggle_play()
+
+    def test_no_warning_when_the_render_keeps_up(self, window):
+        window.speed_spin.setValue(4)
+        window.toggle_play()
+        try:
+            window._last_frame_ms = 5.0
+            window.update_sweep_time_label()
+            assert "render-limited" not in window.sweep_time_label.text()
+        finally:
+            window.toggle_play()
+
+    def test_no_warning_while_stopped(self, window):
+        window._last_frame_ms = 999.0
+        window.update_sweep_time_label()
+        assert "render-limited" not in window.sweep_time_label.text()
+
+
+class TestUpscaling:
+    """Drawing a coarse measurement grid at a legible size.
+
+    A 24 x 18 raster is 24 x 18 pixels. The factor enlarges it; the smoothing
+    mode decides whether the gaps between measurement points are filled with
+    flat blocks or interpolated.
+    """
+
+    def test_the_default_matches_the_previous_fixed_behaviour(self, window):
+        assert window.upscale_combo.currentData() == viz.DEFAULT_UPSCALE_FACTOR
+        assert window.interp_combo.currentText() == viz.INTERP_NEAREST
+
+    @pytest.mark.parametrize("factor", viz.UPSCALE_FACTORS)
+    def test_the_image_scales_with_the_factor(self, window, factor):
+        window.upscale_combo.setCurrentText(f"{factor}×")
+        pixmap = window.scene.items()[0].pixmap()
+        assert pixmap.width() == len(window.unique_y) * factor
+        assert pixmap.height() == len(window.unique_x) * factor
+
+    @pytest.mark.parametrize("factor", viz.UPSCALE_FACTORS)
+    @pytest.mark.parametrize("mode", viz.INTERP_MODES)
+    def test_clicking_still_picks_the_right_point(self, window, factor, mode):
+        """The hit test divides by the scale factor, so renderer and click
+        handler must agree at every setting. The bilinear path uses the
+        half-pixel convention precisely so that pixel // scale still names the
+        measurement point underneath."""
+        window.interp_combo.setCurrentText(mode)
+        window.upscale_combo.setCurrentText(f"{factor}×")
+        scale = window.heatmap_scale_factor
+
+        for ix, iy in ((0, 0), (3, 2), (7, 5)):
+            window.on_heatmap_clicked(iy * scale + scale // 2, ix * scale + scale // 2)
+            assert window.point_coordinates(window.selected_point) == (
+                float(window.unique_x[ix]), float(window.unique_y[iy])
+            )
+
+    @pytest.mark.parametrize("factor", viz.UPSCALE_FACTORS)
+    def test_nearest_is_exactly_block_replication(self, window, factor):
+        """The old renderer replicated blocks at a fixed 4x. Nearest at any
+        factor must be that same operation -- every pixel a measured value."""
+        window.interp_combo.setCurrentText(viz.INTERP_NEAREST)
+        grid = np.arange(6.0).reshape(2, 3)
+        expected = np.repeat(np.repeat(grid, factor, axis=0), factor, axis=1)
+        assert np.array_equal(window._upscale(grid, factor), expected)
+
+    def test_scale_one_is_the_identity_in_both_modes(self, window):
+        grid = np.arange(12.0).reshape(3, 4)
+        for mode in viz.INTERP_MODES:
+            window.interp_combo.setCurrentText(mode)
+            assert np.array_equal(window._upscale(grid, 1), grid)
+
+    def test_bilinear_actually_smooths(self, window):
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        grid = np.arange(6.0).reshape(2, 3)
+        smooth = window._upscale(grid, 4)
+        blocky = np.repeat(np.repeat(grid, 4, axis=0), 4, axis=1)
+        assert not np.allclose(smooth, blocky)
+
+    def test_bilinear_lands_measured_values_on_the_cell_centres(self, window):
+        """The alignment property the click mapping depends on. An odd factor
+        puts each cell's centre exactly on an output pixel, so it can be
+        checked directly; at an even factor the centre falls between two."""
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        grid = np.arange(6.0).reshape(2, 3)
+        out = window._upscale(grid, 3)
+        assert np.allclose(out[1::3, 1::3], grid)
+
+    def test_bilinear_invents_no_new_extremes(self, window):
+        """It is a convex blend of neighbours, so it must not overshoot. An
+        interpolated peak brighter than anything measured would be a lie."""
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        grid = np.random.default_rng(0).random((9, 7))
+        out = window._upscale(grid, 8)
+        assert out.min() >= grid.min() - 1e-12
+        assert out.max() <= grid.max() + 1e-12
+
+    def test_bilinear_leaves_a_constant_field_constant(self, window):
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        out = window._upscale(np.full((4, 5), 7.0), 8)
+        assert np.allclose(out, 7.0)
+
+    def test_bilinear_does_not_smear_across_unmeasured_cells(self, window):
+        """A scan in progress is mostly NaN. Plain interpolation would drag
+        NaN across every neighbouring pixel and eat the edge of the measured
+        area, so the upscaler uses normalised convolution."""
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        grid = np.array([[1.0, 1.0, np.nan], [1.0, 1.0, np.nan]])
+        out = window._upscale(grid, 4)
+
+        assert not np.any(np.isnan(out[:, :4])), "measured region must survive"
+        assert np.allclose(out[:, :4], 1.0)
+        assert np.all(np.isnan(out[:, -2:])), "unmeasured region stays a hole"
+
+    def test_unmeasured_cells_render_grey_in_both_modes(self, window):
+        for mode in viz.INTERP_MODES:
+            window.interp_combo.setCurrentText(mode)
+            rgb = window._colormap_rgb(window._upscale(
+                np.array([[0.5, np.nan]]), 4
+            ))
+            assert tuple(rgb[0, -1]) == (128, 128, 128), mode
+
+    def test_changing_either_control_redraws(self, window):
+        def snapshot():
+            return hash(window.scene.items()[0].pixmap().toImage().bits().tobytes())
+
+        window.upscale_combo.setCurrentText("2×")
+        small = snapshot()
+        window.upscale_combo.setCurrentText("8×")
+        large = snapshot()
+        assert small != large
+
+        window.interp_combo.setCurrentText(viz.INTERP_BILINEAR)
+        assert snapshot() != large
+
+    def test_the_factor_is_clamped_for_huge_grids(self, window):
+        """A 200 x 200 grid at 16x is 3200 px square and 30 MB per frame."""
+        assert window.effective_scale_factor((200, 200)) * 200 <= viz.MAX_HEATMAP_PIXELS
+        assert window.effective_scale_factor((9000, 9000)) == 1, "never below 1"
+
+    def test_a_small_grid_is_not_clamped(self, window):
+        window.upscale_combo.setCurrentText("16×")
+        assert window.effective_scale_factor((24, 18)) == 16
+
+    def test_the_effective_factor_is_what_the_hit_test_uses(self, window):
+        """If the renderer clamps but the hit test does not, clicks land on the
+        wrong point."""
+        window.upscale_combo.setCurrentText("16×")
+        window.redraw_data()
+        assert window.heatmap_scale_factor == window.effective_scale_factor(
+            (len(window.unique_x), len(window.unique_y))
+        )

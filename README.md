@@ -23,3 +23,20 @@ after the fact:
 With no argument the window opens with everything greyed out except the
 Import button. The same window is reachable from inside the scanner GUI, where
 it follows the running scan live.
+
+### Playback and display
+
+**Speed** sets how fast Play steps through the axis, 1-60 fps (default 8). The
+readout beside it shows how long one full pass takes, and warns if the render
+cannot keep up with the rate you asked for.
+
+**Upscale** sets how many pixels each measurement point is drawn as (1x-16x).
+A scan grid is coarse -- a 24 x 18 raster is 24 x 18 pixels -- so it needs
+enlarging to be legible. **Smoothing** chooses how the gaps are filled:
+
+* `Nearest` - one flat block per point. Every pixel is a measured value.
+* `Bilinear` - blends between neighbouring points. Much easier to read on a
+  coarse grid, but the gradient between two points is interpolation, not data.
+
+Both are display settings only. The stored data is untouched, and clicking the
+heatmap still selects the real measurement point underneath.

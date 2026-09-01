@@ -7,6 +7,7 @@
 
 import os
 import sys
+import time
 
 if __package__ in (None, ""):
     # Being run as a plain script (`python scanner/S_param_visualizer.py`).
@@ -18,7 +19,7 @@ if __package__ in (None, ""):
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGraphicsView, QGraphicsScene, QHBoxLayout,
     QPushButton, QLabel, QComboBox, QGraphicsPixmapItem, QSlider,
-    QDoubleSpinBox, QCheckBox, QSplitter, QFileDialog
+    QDoubleSpinBox, QSpinBox, QCheckBox, QSplitter, QFileDialog
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QColor, QFont, QImage, QPixmap
@@ -53,6 +54,28 @@ DOMAIN_TIME = "Time (FFT)"
 #: plot pads properly because there it does help read a peak off the curve.
 HEATMAP_PAD_FACTOR = 1
 TRACE_PAD_FACTOR = 8
+
+#: Playback rate for the Play button, in frames per second. The old code set a
+#: 0 ms timer interval, so playback ran as fast as the renderer could manage --
+#: unreadable once the renderer got fast. 8 fps steps visibly.
+MIN_PLAYBACK_FPS = 1
+MAX_PLAYBACK_FPS = 60
+DEFAULT_PLAYBACK_FPS = 8
+
+#: Pixels drawn per measurement point. The scan grid is coarse -- a 24 x 18
+#: raster is 24 x 18 pixels -- so it is enlarged to be legible.
+UPSCALE_FACTORS = (1, 2, 4, 8, 16)
+DEFAULT_UPSCALE_FACTOR = 4
+
+#: Longest side of the rendered heatmap, in pixels. A 200 x 200 grid at 16x
+#: would be 3200 px square and 30 MB of RGB per frame, which stutters during
+#: playback for no visible gain; the factor is clamped to respect this.
+MAX_HEATMAP_PIXELS = 4096
+
+#: How the gaps between measurement points are filled in.
+INTERP_NEAREST = "Nearest"
+INTERP_BILINEAR = "Bilinear"
+INTERP_MODES = (INTERP_NEAREST, INTERP_BILINEAR)
 
 class ZoomableGraphicsView(QGraphicsView):
     """Custom QGraphicsView with mouse wheel zoom and click-to-select."""
@@ -160,12 +183,16 @@ class VisualizerWindow(QWidget):
         self.selected_point = None    # row index of the pixel shown in the trace panel
         self._transform_error = False # a transform message is on the status bar
         self._data_status = "Waiting for data..."
+        self._last_frame_ms = 0.0     # smoothed render cost, for the speed readout
         
         # Animation parameters
         self.is_playing = False
         self.play_timer = QTimer()
         self.play_timer.timeout.connect(self.play_next_frame)
-        self.play_speed = 0.05  # ms per frame
+        #: Milliseconds between frames, derived from the Speed control. Was a
+        #: hard-coded 0.05, which QTimer truncates to 0 ms -- i.e. as fast as
+        #: the event loop will go.
+        self.play_speed = round(1000 / DEFAULT_PLAYBACK_FPS)
         
         # Setup UI
         self.setup_ui()
@@ -210,6 +237,9 @@ class VisualizerWindow(QWidget):
             self.filter_combo,
             self.freq_slider,
             self.trace_checkbox,
+            self.upscale_combo,
+            self.interp_combo,
+            self.speed_spin,
         ):
             widget.setEnabled(loaded)
 
@@ -255,6 +285,7 @@ class VisualizerWindow(QWidget):
         self.min_label.setText("Min: --")
         self.max_label.setText("Max: --")
         self.freq_value_label.setText("--")
+        self.sweep_time_label.setText("")
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -366,6 +397,33 @@ class VisualizerWindow(QWidget):
 
         transform_layout.addStretch()
 
+        # -- rendering ------------------------------------------------------
+        transform_layout.addWidget(QLabel("Upscale:"))
+        self.upscale_combo = QComboBox()
+        for factor in UPSCALE_FACTORS:
+            self.upscale_combo.addItem(f"{factor}×", factor)
+        self.upscale_combo.setCurrentIndex(UPSCALE_FACTORS.index(DEFAULT_UPSCALE_FACTOR))
+        self.upscale_combo.setToolTip(
+            "Pixels drawn per measurement point.\n"
+            "A scan grid is coarse -- a 24 x 18 raster is 24 x 18 pixels -- so "
+            "it is enlarged to be legible. Purely a display setting; the data "
+            "is untouched and clicking still picks the real measurement point."
+        )
+        self.upscale_combo.currentIndexChanged.connect(self.on_render_changed)
+        transform_layout.addWidget(self.upscale_combo)
+
+        transform_layout.addWidget(QLabel("Smoothing:"))
+        self.interp_combo = QComboBox()
+        self.interp_combo.addItems(list(INTERP_MODES))
+        self.interp_combo.setToolTip(
+            "Nearest: one flat block per measurement point -- every pixel is a "
+            "value that was actually measured.\n"
+            "Bilinear: blends between neighbouring points. Easier to read, but "
+            "the smooth gradient between two points is interpolation, not data."
+        )
+        self.interp_combo.currentTextChanged.connect(self.on_render_changed)
+        transform_layout.addWidget(self.interp_combo)
+
         self.trace_checkbox = QCheckBox("Trace panel")
         self.trace_checkbox.setChecked(False)
         self.trace_checkbox.setEnabled(TRACE_PLOT_AVAILABLE)
@@ -438,6 +496,26 @@ class VisualizerWindow(QWidget):
         self.play_button.clicked.connect(self.toggle_play)
         self.play_button.setEnabled(False)  # Disabled until data loads
         slider_control_layout.addWidget(self.play_button)
+
+        # Playback speed. Without this the timer interval was 0 ms, so
+        # playback ran as fast as the renderer could go -- hundreds of frames a
+        # second once the renderer was vectorised, far too quick to read.
+        slider_control_layout.addWidget(QLabel("Speed:"))
+        self.speed_spin = QSpinBox()
+        self.speed_spin.setRange(MIN_PLAYBACK_FPS, MAX_PLAYBACK_FPS)
+        self.speed_spin.setValue(DEFAULT_PLAYBACK_FPS)
+        self.speed_spin.setSuffix(" fps")
+        self.speed_spin.setFixedWidth(80)
+        self.speed_spin.setToolTip(
+            "Frames per second while playing.\n"
+            "Lower it to watch the scan evolve; raise it to skim."
+        )
+        self.speed_spin.valueChanged.connect(self.on_speed_changed)
+        slider_control_layout.addWidget(self.speed_spin)
+
+        self.sweep_time_label = QLabel("")
+        self.sweep_time_label.setToolTip("How long one pass through the axis takes.")
+        slider_control_layout.addWidget(self.sweep_time_label)
         
         freq_slider_layout.addLayout(slider_control_layout)
         
@@ -458,6 +536,39 @@ class VisualizerWindow(QWidget):
         
         self.setLayout(layout)
     
+    def on_speed_changed(self, fps):
+        """Re-time playback. Takes effect immediately, mid-play included."""
+        self.play_speed = round(1000 / max(fps, 1))
+        if self.is_playing:
+            self.play_timer.start(self.play_speed)
+        self.update_sweep_time_label()
+
+    def update_sweep_time_label(self):
+        """Show how long a full pass takes at the current speed.
+
+        The useful number is not frames per second but how long you will be
+        watching: 201 frequency points at 8 fps is 25 seconds.
+
+        If drawing a frame takes longer than the requested interval the timer
+        simply fires late and playback runs slower than asked. A big grid at
+        16x bilinear costs ~250 ms a frame, which caps playback near 4 fps, so
+        the shortfall is reported rather than left to look like a broken speed
+        control -- turn the upscale factor down to get the rate back.
+        """
+        axis = self.current_axis_values()
+        if axis is None or len(axis) < 2:
+            self.sweep_time_label.setText("")
+            return
+
+        requested = max(self.speed_spin.value(), 1)
+        seconds = len(axis) / requested
+        text = f"({len(axis)} frames, {seconds:.0f} s/pass)"
+
+        frame_ms = getattr(self, "_last_frame_ms", 0.0)
+        if self.is_playing and frame_ms > self.play_speed * 1.5:
+            text += f"  — render-limited to ~{1000.0 / frame_ms:.0f} fps"
+        self.sweep_time_label.setText(text)
+
     def toggle_play(self):
         """Toggle play/pause for frequency animation"""
         if self.is_playing:
@@ -481,8 +592,17 @@ class VisualizerWindow(QWidget):
         if next_index >= len(axis):
             next_index = 0  # loop
 
-        # Updating the slider triggers the redraw.
+        # Updating the slider triggers the redraw. Time it: a heavy upscale
+        # setting can cost more than the frame interval, and the operator
+        # should be told rather than left wondering why Speed does nothing.
+        started = time.perf_counter()
         self.freq_slider.setValue(next_index)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+        previous = getattr(self, "_last_frame_ms", elapsed_ms)
+        # Smoothed, so one slow frame does not make the readout flicker.
+        self._last_frame_ms = 0.7 * previous + 0.3 * elapsed_ms
+        self.update_sweep_time_label()
     
     def initial_setup(self):
         """Initial setup - read metadata and discover S-parameters"""
@@ -735,6 +855,7 @@ class VisualizerWindow(QWidget):
         self.freq_slider.blockSignals(False)
 
         self.update_axis_label()
+        self.update_sweep_time_label()
         self.play_button.setEnabled(num_bins > 1)
 
     # Kept under the old name so any external caller keeps working.
@@ -1294,12 +1415,14 @@ class VisualizerWindow(QWidget):
         else:
             normalized = np.zeros_like(grid_data)
 
-        rgb = self._colormap_rgb(normalized)
+        # Upscale the *data*, then colour it. Colouring first and then
+        # interpolating the RGB would blend through a non-linear colormap and
+        # produce shades that correspond to no value at all.
+        scale_factor = self.effective_scale_factor(grid_data.shape)
+        self.heatmap_scale_factor = scale_factor  # the hit test reads this
+        normalized = self._upscale(normalized, scale_factor)
 
-        # Enlarge each grid cell into a solid block.
-        scale_factor = self.heatmap_scale_factor
-        rgb = np.repeat(np.repeat(rgb, scale_factor, axis=0), scale_factor, axis=1)
-        rgb = np.ascontiguousarray(rgb)
+        rgb = np.ascontiguousarray(self._colormap_rgb(normalized))
 
         image = QImage(
             rgb.data,
@@ -1311,6 +1434,89 @@ class VisualizerWindow(QWidget):
         # QImage wraps the buffer without owning it, and `rgb` is a local that
         # is about to go out of scope. copy() detaches it onto Qt's own memory.
         return image.copy()
+
+    def effective_scale_factor(self, grid_shape):
+        """Pixels per measurement point, clamped to a sane image size.
+
+        A 200 x 200 grid at 16x would be 3200 px square: 30 MB of RGB per
+        frame, which stutters during playback and shows nothing a smaller
+        image does not. The clamp keeps the longest side under
+        `MAX_HEATMAP_PIXELS`, never going below 1.
+
+        The hit test divides scene coordinates by the factor, so renderer and
+        click handler must agree -- which is why this is computed in one place.
+        """
+        requested = self.upscale_combo.currentData()
+        if requested is None:
+            requested = DEFAULT_UPSCALE_FACTOR
+
+        longest = max(grid_shape) if len(grid_shape) else 1
+        if longest <= 0:
+            return int(requested)
+        allowed = max(1, MAX_HEATMAP_PIXELS // longest)
+        return int(min(requested, allowed))
+
+    def _upscale(self, values, scale):
+        """Enlarge a grid of values to `scale` pixels per point.
+
+        `Nearest` replicates each point into a solid block, so every pixel
+        shows a value that was really measured. `Bilinear` blends between
+        neighbours, which reads far better on a coarse raster but invents the
+        gradient in between -- the tooltip says so.
+
+        Unmeasured cells are NaN (grey), and a live scan is mostly NaN, so
+        bilinear uses normalised convolution: interpolate the values and a
+        validity mask separately and divide. Without that, one NaN would smear
+        across its whole neighbourhood and eat the edge of the measured area.
+        """
+        values = np.asarray(values, dtype=float)
+        if scale <= 1:
+            return values
+        if self.interp_combo.currentText() != INTERP_BILINEAR:
+            return np.repeat(np.repeat(values, scale, axis=0), scale, axis=1)
+
+        valid = np.isfinite(values)
+        filled = np.where(valid, values, 0.0)
+
+        numerator = self._bilinear(filled, scale)
+        weight = self._bilinear(valid.astype(float), scale)
+
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out = numerator / weight
+        # Below half weight the pixel is mostly extrapolated from nothing;
+        # leave it as a hole rather than inventing an edge.
+        return np.where(weight > 0.5, out, np.nan)
+
+    @staticmethod
+    def _bilinear(values, scale):
+        """Bilinear resample by an integer factor.
+
+        Uses the half-pixel ("align_corners=False") convention: output pixel p
+        samples input coordinate ``(p + 0.5) / scale - 0.5``. That places each
+        input cell's centre in the middle of its block, so output pixel p still
+        belongs to input cell ``p // scale`` -- exactly the mapping
+        `on_heatmap_clicked` uses. Changing the convention would silently break
+        click-to-select.
+        """
+        height, width = values.shape
+
+        rows = np.clip((np.arange(height * scale) + 0.5) / scale - 0.5, 0, height - 1)
+        cols = np.clip((np.arange(width * scale) + 0.5) / scale - 0.5, 0, width - 1)
+
+        r0 = np.floor(rows).astype(int)
+        c0 = np.floor(cols).astype(int)
+        r1 = np.minimum(r0 + 1, height - 1)
+        c1 = np.minimum(c0 + 1, width - 1)
+        wr = (rows - r0)[:, None]
+        wc = (cols - c0)[None, :]
+
+        top = values[np.ix_(r0, c0)] * (1 - wc) + values[np.ix_(r0, c1)] * wc
+        bottom = values[np.ix_(r1, c0)] * (1 - wc) + values[np.ix_(r1, c1)] * wc
+        return top * (1 - wr) + bottom * wr
+
+    def on_render_changed(self, _value=None):
+        """Upscale factor or smoothing changed: redraw, keep everything else."""
+        self.redraw_data()
 
     def _colormap_rgb(self, normalized):
         """Map normalised values in [0, 1] to an (h, w, 3) uint8 RGB array.
